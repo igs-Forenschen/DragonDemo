@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>下巴切割編輯器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#1a1a1a;display:flex;height:100vh;font-family:monospace;color:#ddd;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:12px;}
+#canvasWrap{position:relative;cursor:crosshair;}
+canvas{display:block;max-width:100%;height:auto;}
+#right{width:260px;background:#111;border-left:1px solid #333;display:flex;flex-direction:column;padding:14px;gap:10px;overflow-y:auto;}
+h3{font-size:13px;color:#aaa;font-weight:normal;border-bottom:1px solid #333;padding-bottom:6px;}
+.coords{font-size:12px;line-height:1.9;color:#7dff9a;}
+.hint{font-size:11px;color:#666;line-height:1.6;}
+.hinge-info{font-size:12px;color:#ffd700;background:#2a2500;padding:6px 8px;border-radius:4px;}
+.btns{display:flex;flex-direction:column;gap:6px;}
+button{padding:7px 10px;border:1px solid #444;background:#2a2a2a;color:#ddd;border-radius:4px;cursor:pointer;font-size:12px;font-family:monospace;}
+button:hover{background:#383838;}
+button.danger{border-color:#633;color:#f88;}
+button.primary{border-color:#2a6;color:#7dff9a;}
+#output{background:#0d1a0d;border:1px solid #2a4a2a;border-radius:4px;padding:8px;font-size:11px;color:#7dff9a;line-height:1.7;white-space:pre;word-break:break-all;}
+.mode-badge{font-size:11px;padding:3px 8px;border-radius:10px;display:inline-block;}
+.mode-badge.draw{background:#1a3a1a;color:#7dff9a;border:1px solid #2a5a2a;}
+.mode-badge.preview{background:#2a2a0a;color:#ffd700;border:1px solid #4a4a1a;}
+</style>
+</head>
+<body>
+<div id="left">
+  <div style="display:flex;gap:10px;align-items:center;">
+    <span id="modeBadge" class="mode-badge draw">✏️ 繪製模式</span>
+    <span style="font-size:11px;color:#555;">點擊畫布新增頂點 | 右鍵最後一點刪除</span>
+  </div>
+  <div id="canvasWrap">
+    <canvas id="c"></canvas>
+  </div>
+</div>
+
+<div id="right">
+  <h3>鉸接點（旋轉中心）</h3>
+  <div class="hinge-info">HINGE_X = <span id="hx">430</span><br>HINGE_Y = <span id="hy">235</span></div>
+  <div class="hint">Shift+點擊 更新鉸接點</div>
+
+  <h3>下巴頂點 <span id="ptCount" style="color:#555">(0點)</span></h3>
+  <div class="coords" id="coordList">尚未新增頂點</div>
+
+  <h3>產生的程式碼</h3>
+  <div id="output">尚未新增頂點</div>
+
+  <div class="btns">
+    <button class="primary" id="btnPreview">▶ 預覽開合動畫</button>
+    <button id="btnUndo">↩ 刪除最後一點</button>
+    <button class="danger" id="btnClear">✕ 清除全部</button>
+  </div>
+
+  <div class="hint" style="margin-top:4px;">
+    複製上方程式碼<br>貼到 jaw_test.html 的 const JAW 位置
+  </div>
+</div>
+
+<script>
+const CANVAS_W=621, CANVAS_H=402;
+let hingeX=430, hingeY=235;
+let points=[
+  [421, 237],
+  [469, 268],
+  [510, 279],
+  [529, 287],
+  [518, 306],
+  [495, 309],
+  [451, 288],
+  [408, 269],
+  [408, 247],
+];
+let previewing=false;
+let previewTime=0, previewAngle=0;
+let animId=null;
+
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+canvas.width=CANVAS_W;
+canvas.height=CANVAS_H;
+
+const img=new Image();
+img.src='dragon/01.png';
+img.onload=()=>render();
+
+// ── 縮放 canvas 顯示尺寸（適應視窗）
+function fitCanvas(){
+  const wrap=document.getElementById('canvasWrap');
+  const maxW=wrap.parentElement.clientWidth-24;
+  const maxH=window.innerHeight-100;
+  const s=Math.min(maxW/CANVAS_W, maxH/CANVAS_H, 1);
+  canvas.style.width=CANVAS_W*s+'px';
+  canvas.style.height=CANVAS_H*s+'px';
+}
+fitCanvas();
+window.addEventListener('resize',fitCanvas);
+
+// ── 點擊事件：新增頂點 / Shift+點擊更新鉸接點
+canvas.addEventListener('click',function(e){
+  const r=canvas.getBoundingClientRect();
+  const scaleX=CANVAS_W/r.width, scaleY=CANVAS_H/r.height;
+  const x=Math.round((e.clientX-r.left)*scaleX);
+  const y=Math.round((e.clientY-r.top)*scaleY);
+  if(e.shiftKey){
+    hingeX=x; hingeY=y;
+    document.getElementById('hx').textContent=x;
+    document.getElementById('hy').textContent=y;
+  } else {
+    points.push([x,y]);
+  }
+  updateUI();
+  render();
+});
+
+// 右鍵刪除最後一點
+canvas.addEventListener('contextmenu',function(e){
+  e.preventDefault();
+  if(points.length>0)points.pop();
+  updateUI();
+  render();
+});
+
+// ── 主繪製
+function render(){
+  ctx.clearRect(0,0,CANVAS_W,CANVAS_H);
+
+  if(img.complete&&img.naturalWidth){
+    if(previewing&&points.length>=3){
+      drawPreview();
+    } else {
+      // 正常顯示
+      ctx.drawImage(img,0,0,CANVAS_W,CANVAS_H);
+      drawOverlay();
+    }
+  } else {
+    ctx.fillStyle='#222';
+    ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
+    ctx.fillStyle='#666';
+    ctx.font='16px monospace';
+    ctx.fillText('等待圖片載入... (需 Live Server)',60,CANVAS_H/2);
+    drawOverlay();
+  }
+}
+
+function drawOverlay(){
+  if(points.length===0)return;
+
+  // 填色半透明區域
+  ctx.save();
+  ctx.beginPath();
+  points.forEach(([x,y],i)=>i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+  if(points.length>=3)ctx.closePath();
+  ctx.fillStyle='rgba(0,255,100,0.18)';
+  ctx.fill();
+  ctx.strokeStyle='rgba(0,255,100,0.9)';
+  ctx.lineWidth=1.5;
+  ctx.stroke();
+  ctx.restore();
+
+  // 各頂點
+  points.forEach(([x,y],i)=>{
+    ctx.beginPath();
+    ctx.arc(x,y,5,0,Math.PI*2);
+    ctx.fillStyle=i===points.length-1?'#ff6':'#0f6';
+    ctx.fill();
+    // 編號
+    ctx.fillStyle='#fff';
+    ctx.font='bold 10px monospace';
+    ctx.fillText(i,x+7,y-4);
+  });
+
+  // 鉸接點
+  ctx.beginPath();
+  ctx.arc(hingeX,hingeY,7,0,Math.PI*2);
+  ctx.strokeStyle='#ffd700';
+  ctx.lineWidth=2;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(hingeX,hingeY,2,0,Math.PI*2);
+  ctx.fillStyle='#ffd700';
+  ctx.fill();
+  // 鉸接點標籤
+  ctx.fillStyle='#ffd700';
+  ctx.font='11px monospace';
+  ctx.fillText('H',hingeX+9,hingeY+4);
+}
+
+// ── 預覽動畫（切割下巴旋轉）
+function drawPreview(){
+  ctx.drawImage(img,0,0,CANVAS_W,CANVAS_H);
+
+  ctx.save();
+  ctx.globalCompositeOperation='destination-out';
+  jawPath();
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(hingeX,hingeY);
+  ctx.rotate(previewAngle*Math.PI/180);
+  ctx.translate(-hingeX,-hingeY);
+  jawPath();
+  ctx.clip();
+  ctx.drawImage(img,0,0,CANVAS_W,CANVAS_H);
+  ctx.restore();
+
+  // 疊上覆蓋物（鉸接點）
+  ctx.beginPath();
+  ctx.arc(hingeX,hingeY,5,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,215,0,0.6)';
+  ctx.fill();
+}
+
+function jawPath(){
+  ctx.beginPath();
+  points.forEach(([x,y],i)=>i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+  ctx.closePath();
+}
+
+// ── 預覽動畫迴圈
+function previewLoop(){
+  previewTime+=0.04;
+  const raw=Math.sin(previewTime);
+  previewAngle=raw>0?raw*28:0;
+  render();
+  animId=requestAnimationFrame(previewLoop);
+}
+
+// ── UI 更新
+function updateUI(){
+  const list=document.getElementById('coordList');
+  const out=document.getElementById('output');
+  const cnt=document.getElementById('ptCount');
+  cnt.textContent='('+points.length+'點)';
+
+  if(points.length===0){
+    list.textContent='尚未新增頂點';
+    out.textContent='尚未新增頂點';
+    return;
+  }
+
+  list.innerHTML=points.map(([x,y],i)=>
+    `<span style="color:#555">[${i}]</span> x=<b>${x}</b>, y=<b>${y}</b>`
+  ).join('<br>');
+
+  const code='const JAW = [\n'+
+    points.map(([x,y],i)=>{
+      const isHinge=(x===hingeX&&y===hingeY);
+      return`  [${x}, ${y}],${isHinge?' // ← 鉸接點':''}`;
+    }).join('\n')+
+  '\n];';
+  out.textContent=code;
+}
+
+// ── 按鈕
+document.getElementById('btnPreview').addEventListener('click',function(){
+  if(points.length<3){alert('至少需要3個頂點才能預覽');return;}
+  previewing=!previewing;
+  this.textContent=previewing?'⏹ 停止預覽':'▶ 預覽開合動畫';
+  document.getElementById('modeBadge').className='mode-badge '+(previewing?'preview':'draw');
+  document.getElementById('modeBadge').textContent=previewing?'🎬 預覽模式':'✏️ 繪製模式';
+  if(previewing){previewTime=0;previewLoop();}
+  else{cancelAnimationFrame(animId);render();}
+});
+
+document.getElementById('btnUndo').addEventListener('click',function(){
+  if(points.length>0){points.pop();updateUI();render();}
+});
+
+document.getElementById('btnClear').addEventListener('click',function(){
+  if(confirm('清除所有頂點？')){points=[];updateUI();render();}
+});
+
+// 初始渲染
+render();
+</script>
+</body>
+</html>
