@@ -45,6 +45,10 @@ body{background:#000;overflow:hidden;width:100vw;height:100vh;display:flex;align
         <span class="bv" id="bval">999</span>
         <button class="bbn" onclick="chgBet(1)">+</button>
       </div>
+      <div style="display:flex;gap:6px;margin-left:10px;pointer-events:all;">
+        <button class="showBtn active" id="btn1" onclick="selectShow(1)">亂噴</button>
+        <button class="showBtn" id="btn2" onclick="selectShow(2)">正面噴</button>
+      </div>
     </div>
     <div class="gb" onclick="resetGame()" title="重置">
       <svg width="55%" viewBox="0 0 24 24" fill="none" stroke="#ddd" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -85,17 +89,23 @@ const MOUTH_X=420, MOUTH_Y=115;
 // 火焰延伸方向（往右，間距）
 const FIRE_STEP=44;
 // ── 下巴切割動畫
-const HINGE_IMG_X=430, HINGE_IMG_Y=235; // 鉸接點（圖片座標）
+const HINGE_IMG_X=430, HINGE_IMG_Y=235;
+// ── 正面噴火：嘴巴錨點（相對於正面龍圖片比例）
+// 調整說明：0.5=水平正中, 0.4=40%高度處
+// 往上調：把 S2_MOUTH_Y_RATIO 數字調小（如 0.4→0.35）
+// 往下調：數字調大（如 0.4→0.45）
+const S2_MOUTH_X_RATIO=0.5;   // 水平位置
+const S2_MOUTH_Y_RATIO=0.48;  // 垂直位置（從頂部算）
+// 數字顯示在火焰的哪個位置（0=最底, 負值=往上移）
+const S2_NUM_OFFSET_Y=-70;      // 數字往上移：調成負數，如 -60
+// ── 火焰圖片位置微調（相對於嘴巴錨點的額外偏移）
+// S2_FIRE_OFFSET_Y：負數=往上，正數=往下
+// S2_FIRE_OFFSET_X：負數=往左，正數=往右（目前以嘴巴X為中心）
+const S2_FIRE_OFFSET_Y=-20;   // 預設往上20px，讓火焰從嘴巴噴出
+const S2_FIRE_OFFSET_X=0;     // 水平偏移 // 鉸接點（圖片座標）
 const JAW_IMG=[ // 下巴多邊形（圖片座標）
-  [421, 237],
-  [469, 268],
-  [510, 279],
-  [529, 287],
-  [518, 306],
-  [495, 309],
-  [451, 288],
-  [408, 269],
-  [408, 247],
+  [422,238],[475,270],[525,280],[511,309],
+  [480,305],[451,289],[400,267],[401,244]
 ];
 const JAW_MAX_ANGLE=26; // 最大張嘴角度（度）
 const COIN_FPS=15, COIN_TOTAL=15;
@@ -104,6 +114,9 @@ const COIN_FPS=15, COIN_TOTAL=15;
 // 狀態
 // ═══════════════════════════════════════════════════
 let shots=0,busy=false,bet=999,rafId=null;
+let showMode=1;
+let s2Phase=null,s2FireScale=0,s2FireIdx=0,s2ScoreDone=false;
+let scoreVal=0,scoreFinal=0,scoreRafId=null;
 let curTx=602,curTy=115,curAng=0;
 let bellyScaleX=1,bellyScaleY=1;
 let jawAngle=0; // 目前下巴張開角度（度）
@@ -128,6 +141,11 @@ function loadPrize(){
 function loadFire(){
   fireImg=new Image();
   fireImg.src='effect/fire.png';
+}
+let frontDragonImgs=[],frontFireImgs=[];
+function loadShow2Assets(){
+  ['04','05'].forEach(n=>{const i=new Image();i.src='dragon/'+n+'.png';frontDragonImgs.push(i);});
+  [2,3,4].forEach(n=>{const i=new Image();i.src='effect/fire0'+n+'.png';frontFireImgs.push(i);});
 }
 
 function loadDragon(){
@@ -383,7 +401,14 @@ function shoot(){
   shots++;
   if(shots===3){setBelly(INF[1].sx,INF[1].sy);setSt('肚子膨脹！');}
   else if(shots===5){setBelly(INF[2].sx,INF[2].sy);setSt('越來越大！快撐破了！');}
-  else if(shots===8){busy=true;document.getElementById('abtn').style.opacity='.35';setSt('命中！');setTimeout(startShow,200);}
+  else if(shots===8){
+    busy=true;
+    document.getElementById('abtn').style.opacity='.35';
+    setSt('命中！');
+    console.log('[Shoot] 命中！showMode='+showMode);
+    if(showMode===1) setTimeout(startShow,200);
+    else setTimeout(startShow2,200);
+  }
   else setSt(['','命中！','再一發！','','撐著呢...','','快撐不住了！','最後一發！'][shots]);
 }
 
@@ -458,7 +483,9 @@ function render2(){
   jawAngle+=(targetJaw-jawAngle)*0.18; // 0.18 = 平滑速度
   if(jawAngle<0.1)jawAngle=0;
   drawCoins();
-  if(window._dragonScale>0){
+  if(s2Phase){
+    drawShow2(ctx);
+  } else if(window._dragonScale>0){
     ctx.save();
     const cx=DCX+curTx,cy=DCY+curTy;
     ctx.translate(cx,cy);
@@ -522,10 +549,208 @@ function chgBet(d){
   bet=vs[i];document.getElementById('bval').textContent=bet;
 }
 
+// ══════════════════════════
+// 表演切換
+// ══════════════════════════
+function selectShow(n){
+  showMode=n;
+  console.log('[Mode] 切換到表演'+n+(n===1?' 亂噴':' 正面噴'));
+  document.getElementById('btn1').classList.toggle('active',n===1);
+  document.getElementById('btn2').classList.toggle('active',n===2);
+  setSt(n===1?'模式：亂噴':'模式：正面噴');
+  setTimeout(()=>setSt(''),1200);
+}
+
+// ══════════════════════════
+// 表演2 繪製
+// ══════════════════════════
+function drawShow2(ctx){
+  // 正面龍圖（03=閉嘴, 04=張嘴）
+  const iw=621,ih=402;
+  const dx=Math.round(BASE_W/2-iw/2);
+  const dy=Math.round(BASE_H*0.08);
+  const useOpen=(s2Phase!=='closed'); // 只有閉嘴階段用03，其餘全程張嘴(04)
+  const s2sc=window.s2DragonScale!==undefined?window.s2DragonScale:1;
+  const drImg=frontDragonImgs[useOpen?1:0];
+  if(!drImg||!drImg.complete||!drImg.naturalWidth){
+    // 圖片未載入：畫提示框
+    ctx.save();
+    ctx.strokeStyle='#ff4444';ctx.lineWidth=2;
+    ctx.strokeRect(dx,dy,iw,ih);
+    ctx.fillStyle='#ff4444';ctx.font='16px monospace';ctx.textAlign='center';
+    ctx.fillText('dragon/'+(useOpen?'04':'03')+'.png 未載入',dx+iw/2,dy+ih/2);
+    ctx.restore();
+  } else if(drImg&&drImg.complete&&drImg.naturalWidth){
+    if(s2sc!==1&&s2sc>0){
+      ctx.save();
+      ctx.translate(dx+iw/2,dy+ih/2);
+      ctx.scale(s2sc,s2sc);
+      ctx.translate(-iw/2,-ih/2);
+      ctx.drawImage(drImg,0,0,iw,ih);
+      ctx.restore();
+    } else if(s2sc>0){
+      ctx.drawImage(drImg,dx,dy,iw,ih);
+    }
+  }
+
+  // 火焰（嘴巴錨點：正面圖中央偏下）
+  // 嘴巴大約在 iw*0.5, ih*0.68 的位置
+  const mouthX=dx+iw*S2_MOUTH_X_RATIO;
+  const mouthY=dy+ih*S2_MOUTH_Y_RATIO;
+
+  if((s2Phase==='fire'||s2Phase==='fadeout')&&s2FireScale>0){
+    const fImg=frontFireImgs[s2FireIdx];
+    const fw=500,fh=448;
+    const sc=s2FireScale;
+    const alpha=s2Phase==='fadeout'?Math.max(0,1-s2FadeT):1;
+    if(fImg&&fImg.complete&&fImg.naturalWidth){
+      ctx.save();
+      ctx.globalAlpha=alpha;
+      ctx.drawImage(fImg, mouthX+S2_FIRE_OFFSET_X-fw*sc/2, mouthY+S2_FIRE_OFFSET_Y-fh*sc*0.5, fw*sc, fh*sc);
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
+    // 跑分數字在火焰中間
+    if(scoreFinal>0){
+      const t=scoreVal/scoreFinal;
+      const sz=Math.round(52+t*88); // 52px→140px
+      const numY=mouthY+fh*sc*0.18+S2_NUM_OFFSET_Y;
+      ctx.save();
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.shadowColor='#ff6600';
+      ctx.shadowBlur=sz*0.6;
+      const grd=ctx.createLinearGradient(mouthX,numY-sz/2,mouthX,numY+sz/2);
+      grd.addColorStop(0,'#ffffff');
+      grd.addColorStop(0.35,'#ffee88');
+      grd.addColorStop(1,'#ffaa00');
+      ctx.font='bold '+sz+'px sans-serif';
+      ctx.fillStyle=grd;
+      ctx.fillText(scoreVal+'x', mouthX, numY);
+      ctx.shadowBlur=0;
+      ctx.restore();
+    }
+  }
+}
+
+// ══════════════════════════
+// 表演2 流程
+// ══════════════════════════
+let s2FadeT=0;
+
+function startShow2(){
+  console.log('[Show2] 開始表演2');
+  scoreFinal=MULS[Math.floor(Math.random()*MULS.length)];
+  scoreVal=0; s2Phase=null; s2FireScale=0; s2FireIdx=0; s2FadeT=0;
+
+  // Step1: 龍飛到畫面中央
+  const destTx=BASE_W/2-DCX, destTy=BASE_H*0.4-DCY;
+  const sTx=curTx,sTy=curTy,sDur=500;
+  console.log('[Show2] 龍飛往中央 destTx='+destTx+' destTy='+destTy);
+  let t0=null;
+  function flyIn(ts){
+    if(!t0)t0=ts;
+    const t=Math.min((ts-t0)/sDur,1),et=eoc(t);
+    setDragon(sTx+(destTx-sTx)*et,sTy+(destTy-sTy)*et,curAng*(1-et));
+    if(t<1)requestAnimationFrame(flyIn);
+    else{
+      setDragon(destTx,destTy,0);
+      window._dragonScale=0;
+      console.log('[Show2] 抵達中央，切換正面龍。frontDragonImgs loaded='+frontDragonImgs.filter(i=>i.complete&&i.naturalWidth>0).length+'/2');
+      // Step2: 瞬切正面閉嘴
+      s2Phase='closed'; setSt('');
+      // 等 0.5秒 → 換張嘴 → 立即噴火
+      setTimeout(()=>{
+        s2Phase='open'; setSt('🔥');
+        // 張嘴後立即開始噴火
+        s2Phase='fire';
+        runShow2Fire();
+      },500);
+    }
+  }
+  requestAnimationFrame(flyIn);
+}
+
+function runShow2Fire(){
+  console.log('[Show2] 開始噴火，frontFireImgs loaded='+frontFireImgs.filter(i=>i.complete&&i.naturalWidth>0).length+'/3');
+  const TOTAL=4000; // 噴火總時長 ms
+  let t0=null;
+
+  // 跑分在噴火開始500ms後啟動
+  setTimeout(()=>runScore2(TOTAL-500),500);
+
+  function fireTick(ts){
+    if(!t0)t0=ts;
+    const el=ts-t0,t=Math.min(el/TOTAL,1);
+    // 火焰從0.05→1.5，先快後慢
+    s2FireScale=0.05+eoc(t)*1.45;
+    // 三段火焰圖切換
+    s2FireIdx=t<0.35?0:t<0.7?1:2;
+    if(t<1){requestAnimationFrame(fireTick);}
+    else{
+      // Step5: 跑分停止，火焰消失，龍縮小消失
+      scoreVal=scoreFinal;
+      if(scoreRafId){cancelAnimationFrame(scoreRafId);scoreRafId=null;}
+      fadeOutFire(()=>{
+        shrinkDragon2(()=>{
+          // Step6: 獎圈（複用表演1的 showPrizeCircle）
+          s2Phase=null;
+          showPrizeCircle(scoreFinal);
+          busy=false;
+          document.getElementById('abtn').style.opacity='1';
+        });
+      });
+    }
+  }
+  requestAnimationFrame(fireTick);
+}
+
+function runScore2(durationMs){
+  if(scoreRafId)cancelAnimationFrame(scoreRafId);
+  let t0=null;
+  function tick(ts){
+    if(!t0)t0=ts;
+    const t=Math.min((ts-t0)/durationMs,1);
+    // easeInOutQuad：前段衝快，後段慢慢靠近
+    const et=t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+    scoreVal=Math.round(et*scoreFinal);
+    if(t<1)scoreRafId=requestAnimationFrame(tick);
+  }
+  scoreRafId=requestAnimationFrame(tick);
+}
+
+function fadeOutFire(cb){
+  console.log('[Show2] 火焰淡出');
+  s2Phase='fadeout';
+  let t0=null;
+  function tick(ts){
+    if(!t0)t0=ts;
+    s2FadeT=Math.min((ts-t0)/600,1);
+    if(s2FadeT<1)requestAnimationFrame(tick);
+    else{s2FireScale=0;cb&&cb();}
+  }
+  requestAnimationFrame(tick);
+}
+
+function shrinkDragon2(cb){
+  console.log('[Show2] 龍縮小消失');
+  s2Phase='shrink';
+  let t=0;
+  const id=setInterval(()=>{
+    t+=0.03;
+    const s=t<0.25?1+0.45*(t/0.25):1.45*(1-(t-0.25)/0.75);
+    window.s2DragonScale=Math.max(0,s);
+    if(t>=1){clearInterval(id);window.s2DragonScale=0;cb&&cb();}
+  },16);
+}
+
 function resetGame(){
   if(rafId){cancelAnimationFrame(rafId);rafId=null;}
   shots=0;busy=false;curTx=602;curTy=115;curAng=0;
   setBelly(1,1);setFire(0,null);currentDragonIdx=0;jawAngle=0;
+  s2Phase=null;s2FireScale=0;s2FadeT=0;window.s2DragonScale=1;window._dragonScale=0.72;
+  scoreVal=0;scoreFinal=0;
+  if(scoreRafId){cancelAnimationFrame(scoreRafId);scoreRafId=null;}
   allCoins=[];
   window._dragonScale=0.72;
   document.getElementById('abtn').style.opacity='1';
@@ -548,6 +773,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   loadFire();
   loadDragon();
   loadCoins();
+  loadShow2Assets();
   window._dragonScale=0.72;
   requestAnimationFrame(render2);
 });
