@@ -32,6 +32,9 @@ body{background:#000;overflow:hidden;width:100vw;height:100vh;display:flex;align
   <div id="hud">
     <div id="statusEl"></div>
     <div id="mulEl"></div>
+    <div id="s3TurretWrap" style="position:absolute;bottom:var(--bbH,42px);left:50%;transform:translateX(-50%);width:clamp(200px,38vw,608px);pointer-events:none;display:none;z-index:6;">
+      <img id="s3TurretImg" src="dragon/06.png" style="width:100%;height:auto;display:block;">
+    </div>
     <div class="bb">
       <span class="lv">LV.C3065 SU</span>
       <div class="cd">
@@ -45,14 +48,14 @@ body{background:#000;overflow:hidden;width:100vw;height:100vh;display:flex;align
         <span class="bv" id="bval">999</span>
         <button class="bbn" onclick="chgBet(1)">+</button>
       </div>
-      <div style="display:flex;gap:6px;margin-left:10px;pointer-events:all;">
+      <div style="display:flex;gap:4px;margin-left:6px;pointer-events:all;flex-shrink:0;">
         <button class="showBtn active" id="btn1" onclick="selectShow(1)">亂噴</button>
-        <button class="showBtn" id="btn2" onclick="selectShow(2)">正面噴</button>
+        <button class="showBtn" id="btn2" onclick="selectShow(2)">正面</button>
+        <button class="showBtn" id="btn3" onclick="selectShow(3)">小火</button>
+        <button class="showBtn" id="btn4" onclick="selectShow(4)">大火</button>
       </div>
     </div>
-    <div class="gb" onclick="resetGame()" title="重置">
-      <svg width="55%" viewBox="0 0 24 24" fill="none" stroke="#ddd" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    </div>
+
     <div id="prizeWrap" style="position:absolute;inset:0;display:flex;visibility:hidden;align-items:center;justify-content:flex-end;flex-direction:column;gap:8px;pointer-events:none;opacity:0;transition:opacity .4s;padding-bottom:9%;">
       <img id="prizeCircleImg" src="effect/prize_circle.png" style="width:clamp(160px,20vw,260px);height:auto;">
       <div id="prizeAmtEl" style="color:#ffee44;font-size:clamp(20px,3vw,38px);font-weight:700;text-shadow:0 2px 12px #ff8800,0 1px 0 #a05000;font-family:sans-serif;letter-spacing:.04em;"></div>
@@ -97,7 +100,7 @@ const HINGE_IMG_X=430, HINGE_IMG_Y=235;
 const S2_MOUTH_X_RATIO=0.5;   // 水平位置
 const S2_MOUTH_Y_RATIO=0.48;  // 垂直位置（從頂部算）
 // 數字顯示在火焰的哪個位置（0=最底, 負值=往上移）
-const S2_NUM_OFFSET_Y=-70;      // 數字往上移：調成負數，如 -60
+const S2_NUM_OFFSET_Y=-70;    // 數字往上移
 // ── 火焰圖片位置微調（相對於嘴巴錨點的額外偏移）
 // S2_FIRE_OFFSET_Y：負數=往上，正數=往下
 // S2_FIRE_OFFSET_X：負數=往左，正數=往右（目前以嘴巴X為中心）
@@ -115,6 +118,7 @@ const COIN_FPS=15, COIN_TOTAL=15;
 // ═══════════════════════════════════════════════════
 let shots=0,busy=false,bet=999,rafId=null;
 let showMode=1;
+let s3Phase=null,s3FireScale=0,s3FadeT=0,s3CoinTimer=null;
 let s2Phase=null,s2FireScale=0,s2FireIdx=0,s2ScoreDone=false;
 let scoreVal=0,scoreFinal=0,scoreRafId=null;
 let curTx=602,curTy=115,curAng=0;
@@ -407,7 +411,9 @@ function shoot(){
     setSt('命中！');
     console.log('[Shoot] 命中！showMode='+showMode);
     if(showMode===1) setTimeout(startShow,200);
-    else setTimeout(startShow2,200);
+    else if(showMode===2) setTimeout(startShow2,200);
+    else if(showMode===3) setTimeout(startShow3,200);
+    else setTimeout(startShow4,200);
   }
   else setSt(['','命中！','再一發！','','撐著呢...','','快撐不住了！','最後一發！'][shots]);
 }
@@ -485,6 +491,10 @@ function render2(){
   drawCoins();
   if(s2Phase){
     drawShow2(ctx);
+  } else if(s3Phase){
+    drawShow3(ctx);
+  } else if(s4Phase){
+    drawShow4(ctx);
   } else if(window._dragonScale>0){
     ctx.save();
     const cx=DCX+curTx,cy=DCY+curTy;
@@ -554,11 +564,13 @@ function chgBet(d){
 // ══════════════════════════
 function selectShow(n){
   showMode=n;
-  console.log('[Mode] 切換到表演'+n+(n===1?' 亂噴':' 正面噴'));
   document.getElementById('btn1').classList.toggle('active',n===1);
   document.getElementById('btn2').classList.toggle('active',n===2);
-  setSt(n===1?'模式：亂噴':'模式：正面噴');
-  setTimeout(()=>setSt(''),1200);
+  document.getElementById('btn3').classList.toggle('active',n===3);
+  document.getElementById('btn4').classList.toggle('active',n===4);
+  const names={1:'亂噴',2:'正面',3:'小火',4:'大火'};
+  setSt('模式：'+names[n]);
+  setTimeout(()=>setSt(''),1000);
 }
 
 // ══════════════════════════
@@ -744,13 +756,302 @@ function shrinkDragon2(cb){
   },16);
 }
 
+// ══════════════════════════
+// 表演3：噴小火
+// ══════════════════════════
+
+// 砲臺在底bar上方的嘴巴位置（相對 canvas 座標）
+// 砲臺圖 608x299，水平置中，壓在底bar(約42px)上方
+// 嘴巴大約在圖片上緣中央
+function getTurretMouth(){
+  const tw=Math.min(608, canvas.offsetWidth||BASE_W); // 砲臺顯示寬
+  const th=tw*299/608;
+  const tx=(BASE_W-tw)/2;
+  const ty=BASE_H-42-th; // 底bar高度約42px
+  // 嘴巴在砲臺圖上方約15%水平中央 → 調整 S3_MOUTH_X_RATIO / S3_MOUTH_Y_RATIO
+  return {
+    x: tx + tw * S3_MOUTH_X_RATIO,
+    y: ty + th * S3_MOUTH_Y_RATIO,
+    tw, th, tx, ty
+  };
+}
+const S3_MOUTH_X_RATIO=0.5;  // 水平：0.5=正中
+const S3_MOUTH_Y_RATIO=0.25; // 垂直：0=最上，往下加
+
+function drawShow3(ctx){
+  if(!s3Phase) return;
+  if(s3Phase==='fire'){
+    const m=getTurretMouth();
+    const fw=500, fh=448;
+    const scX=window.s3ScaleX||0;
+    const scY=window.s3ScaleY||0;
+    if(scX<=0&&scY<=0) return;
+
+    if(fireImg&&fireImg.complete&&fireImg.naturalWidth){
+      ctx.save();
+      // 砲口為錨點，逆時針旋轉90度讓火焰朝上
+      ctx.translate(m.x, m.y);
+      ctx.rotate(-Math.PI/2);
+      // scX=長度(上下), scY=寬度(左右) — 旋轉後對應 drawImage 的寬/高
+      ctx.drawImage(fireImg,
+        0,          // X：從砲口往右（旋轉後=往上）
+        -fh*scY/2,  // Y：左右置中（旋轉後=左右）
+        fw*scX,     // 寬=長度（旋轉後=火焰噴出高度）
+        fh*scY      // 高=寬度（旋轉後=左右擴散寬度）
+      );
+      ctx.restore();
+    }
+  }
+}
+
+function startShow3(){
+  scoreFinal=MULS[Math.floor(Math.random()*MULS.length)];
+  scoreVal=0; s3Phase=null; s3FireScale=0; s3FadeT=0;
+
+  // Step1: 側面龍縮小消失
+  shrinkSideDragon(()=>{
+    // Step2: 砲臺出現
+    const tw=document.getElementById('s3TurretWrap');
+    if(tw) tw.style.display='block';
+    s3Phase='wait';
+    setSt('');
+    // Step3: 0.5秒後開始噴火
+    setTimeout(()=>{
+      s3Phase='fire';
+      runShow3Fire();
+    }, 500);
+  });
+}
+
+function shrinkSideDragon(cb){
+  let t=0; const base=0.72;
+  const id=setInterval(()=>{
+    t+=0.03;
+    const s=t<0.28?base+base*0.45*(t/0.28):base*1.45*(1-(t-0.28)/0.72);
+    window._dragonScale=Math.max(0,s);
+    if(t>=1){clearInterval(id);window._dragonScale=0;cb&&cb();}
+  },16);
+}
+
+function runShow3Fire(){
+  // ── 分段時間軸 (ms)
+  const T_STRAIGHT = 800;   // 細直條
+  const T_SPREAD   = 1700;  // 左右擴散
+  const T_WOBBLE   = 700;   // 頂點抖動掙扎
+  const T_EXTINGUISH = 350; // 急速熄滅（縮短，啪一下）
+  const TOTAL = T_STRAIGHT + T_SPREAD + T_WOBBLE + T_EXTINGUISH;
+
+  // scX = 火焰長度（上下），scY = 火焰寬度（左右）
+  window.s3ScaleX = 1.0;
+  window.s3ScaleY = 0.10;
+
+  let t0=null, coinId=null;
+
+  // 持續噴金幣
+  coinId=setInterval(()=>{
+    if(s3Phase!=='fire') return;
+    const m=getTurretMouth();
+    const fireLen=500*(window.s3ScaleX||1);
+    for(let i=0;i<2;i++){
+      allCoins.push({
+        x: m.x+(Math.random()-.5)*80*(window.s3ScaleY||0.1),
+        y: m.y - 30 - Math.random()*fireLen*0.7,
+        born: Date.now(), alpha:1
+      });
+    }
+  },220);
+
+  function tick(ts){
+    if(!t0)t0=ts;
+    const el=ts-t0;
+
+    if(el < T_STRAIGHT){
+      // 階段1：細直條，固定
+      window.s3ScaleX=1.0;
+      window.s3ScaleY=0.10;
+
+    } else if(el < T_STRAIGHT+T_SPREAD){
+      // 階段2：左右擴散，easeIn（越來越快，製造蓄力感）
+      const gt=(el-T_STRAIGHT)/T_SPREAD;
+      const et=gt*gt; // easeIn
+      window.s3ScaleX=1.0;
+      window.s3ScaleY=0.10+et*0.80; // 0.10→0.90
+
+    } else if(el < T_STRAIGHT+T_SPREAD+T_WOBBLE){
+      // 階段3：頂點抖動，像在掙扎
+      const wt=(el-T_STRAIGHT-T_SPREAD)/T_WOBBLE;
+      window.s3ScaleX=1.0;
+      window.s3ScaleY=0.90+Math.sin(wt*Math.PI*6)*0.08; // ±0.08 抖動
+
+    } else {
+      // 階段4：急速熄滅，easeIn（越來越快地消失）
+      const et=(el-T_STRAIGHT-T_SPREAD-T_WOBBLE)/T_EXTINGUISH;
+      const shrink=Math.max(0,1-et*et*et*et); // t^4：前段幾乎不動，最後瞬間歸零
+      window.s3ScaleX=1.0*shrink;
+      window.s3ScaleY=0.90*shrink;
+    }
+
+    if(el < TOTAL){
+      requestAnimationFrame(tick);
+    } else {
+      clearInterval(coinId);
+      window.s3ScaleX=0; window.s3ScaleY=0;
+      s3Phase=null;
+      // 砲臺留著，只收火焰
+      collectCoins(()=>showPrizeCircle(scoreFinal));
+      busy=false;
+      document.getElementById('abtn').style.opacity='1';
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+// ══════════════════════════
+// 表演4：噴大火（覺醒成功）
+// ══════════════════════════
+let s4Phase=null;
+
+function drawShow4(ctx){
+  if(!s4Phase) return;
+  const m=getTurretMouth();
+  const fw=500, fh=448;
+  const scX=window.s4ScaleX||0;
+  const scY=window.s4ScaleY||0;
+  const alpha=window.s4Alpha!==undefined?window.s4Alpha:1;
+  if(scX<=0&&scY<=0) return;
+  if(fireImg&&fireImg.complete&&fireImg.naturalWidth){
+    ctx.save();
+    ctx.globalAlpha=Math.min(1,alpha);
+    ctx.translate(m.x, m.y);
+    ctx.rotate(-Math.PI/2);
+    ctx.drawImage(fireImg,
+      0,
+      -fh*scY/2,
+      fw*scX,
+      fh*scY
+    );
+    ctx.globalAlpha=1;
+    ctx.restore();
+  }
+}
+
+function startShow4(){
+  scoreFinal=MULS[Math.floor(Math.random()*MULS.length)];
+  scoreVal=0;
+  s4Phase=null;
+  window.s4ScaleX=0; window.s4ScaleY=0; window.s4Alpha=1;
+
+  // 砲臺出現
+  shrinkSideDragon(()=>{
+    const tw=document.getElementById('s3TurretWrap');
+    if(tw) tw.style.display='block';
+    s4Phase='fire';
+    setTimeout(()=>runShow4Fire(), 500);
+  });
+}
+
+function runShow4Fire(){
+  // ── 前半段時間軸（同噴小火）
+  const T_STRAIGHT  = 800;
+  const T_SPREAD    = 1700;
+  const T_WOBBLE    = 700;
+  // ── 後半段：覺醒成功
+  const T_PAUSE     = 250;   // 假停頓：玩家以為要熄滅
+  const T_BURST     = 400;   // 爆發放大：壓抑能量瞬間釋放
+  const T_STRONG    = 2000;  // 強力抖動：覺醒持續燃燒
+  const T_FADEOUT   = 1500;  // 淡出：成功的餘韻
+
+  const TOTAL = T_STRAIGHT+T_SPREAD+T_WOBBLE+T_PAUSE+T_BURST+T_STRONG+T_FADEOUT;
+
+  window.s4ScaleX=1.0; window.s4ScaleY=0.10; window.s4Alpha=1;
+  let t0=null, coinId=null;
+
+  coinId=setInterval(()=>{
+    if(!s4Phase) return;
+    const m=getTurretMouth();
+    const scY=window.s4ScaleY||0.1;
+    for(let i=0;i<3;i++){
+      allCoins.push({
+        x: m.x+(Math.random()-.5)*160*scY,
+        y: m.y-30-Math.random()*500*(window.s4ScaleX||1)*0.7,
+        born: Date.now(), alpha:1
+      });
+    }
+  },180);
+
+  function tick(ts){
+    if(!t0) t0=ts;
+    const el=ts-t0;
+
+    if(el < T_STRAIGHT){
+      // 細直條
+      window.s4ScaleX=1.0; window.s4ScaleY=0.10;
+
+    } else if(el < T_STRAIGHT+T_SPREAD){
+      // 左右擴散 easeIn
+      const gt=(el-T_STRAIGHT)/T_SPREAD;
+      window.s4ScaleX=1.0;
+      window.s4ScaleY=0.10+(gt*gt)*0.80;
+
+    } else if(el < T_STRAIGHT+T_SPREAD+T_WOBBLE){
+      // 頂點抖動
+      const wt=(el-T_STRAIGHT-T_SPREAD)/T_WOBBLE;
+      window.s4ScaleX=1.0;
+      window.s4ScaleY=0.90+Math.sin(wt*Math.PI*6)*0.08;
+
+    } else if(el < T_STRAIGHT+T_SPREAD+T_WOBBLE+T_PAUSE){
+      // ★ 假停頓：火焰稍微縮小，讓玩家以為失敗
+      const pt=(el-T_STRAIGHT-T_SPREAD-T_WOBBLE)/T_PAUSE;
+      window.s4ScaleX=1.0-pt*0.15;      // 稍微縮短
+      window.s4ScaleY=0.90-pt*0.15;     // 稍微收窄
+
+    } else if(el < T_STRAIGHT+T_SPREAD+T_WOBBLE+T_PAUSE+T_BURST){
+      // ★ 爆發：快速放大，壓抑能量釋放
+      const bt=(el-T_STRAIGHT-T_SPREAD-T_WOBBLE-T_PAUSE)/T_BURST;
+      const et=bt*bt*bt; // easeIn cubic：前慢後快
+      window.s4ScaleX=0.85+et*0.55;     // 0.85→1.4
+      window.s4ScaleY=0.75+et*2.05;     // 0.75→2.8
+
+    } else if(el < T_STRAIGHT+T_SPREAD+T_WOBBLE+T_PAUSE+T_BURST+T_STRONG){
+      // ★ 強力抖動：大幅震動，覺醒燃燒中
+      const st=(el-T_STRAIGHT-T_SPREAD-T_WOBBLE-T_PAUSE-T_BURST)/T_STRONG;
+      const wobble=Math.sin(st*Math.PI*14)*0.22; // 頻率快、幅度大
+      const wobble2=Math.sin(st*Math.PI*9)*0.12;
+      window.s4ScaleX=1.4+wobble2;
+      window.s4ScaleY=2.8+wobble;
+
+    } else {
+      // ★ 淡出：alpha fade，火焰融入空氣消散
+      const ft=(el-T_STRAIGHT-T_SPREAD-T_WOBBLE-T_PAUSE-T_BURST-T_STRONG)/T_FADEOUT;
+      window.s4ScaleX=1.4;
+      window.s4ScaleY=2.8;
+      window.s4Alpha=Math.max(0,1-ft);
+    }
+
+    if(el < TOTAL){
+      requestAnimationFrame(tick);
+    } else {
+      clearInterval(coinId);
+      window.s4ScaleX=0; window.s4ScaleY=0; window.s4Alpha=0;
+      s4Phase=null;
+      collectCoins(()=>showPrizeCircle(scoreFinal));
+      busy=false;
+      document.getElementById('abtn').style.opacity='1';
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
 function resetGame(){
   if(rafId){cancelAnimationFrame(rafId);rafId=null;}
   shots=0;busy=false;curTx=602;curTy=115;curAng=0;
   setBelly(1,1);setFire(0,null);currentDragonIdx=0;jawAngle=0;
   s2Phase=null;s2FireScale=0;s2FadeT=0;window.s2DragonScale=1;window._dragonScale=0.72;
+  s3Phase=null;s3FireScale=0;window.s3ScaleX=0;window.s3ScaleY=0;window._s3scoreStarted=false;
+  s4Phase=null;window.s4ScaleX=0;window.s4ScaleY=0;window.s4Alpha=1;
   scoreVal=0;scoreFinal=0;
   if(scoreRafId){cancelAnimationFrame(scoreRafId);scoreRafId=null;}
+  const tw3=document.getElementById('s3TurretWrap');if(tw3)tw3.style.display='none';
   allCoins=[];
   window._dragonScale=0.72;
   document.getElementById('abtn').style.opacity='1';
