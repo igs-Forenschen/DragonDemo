@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>火龍數值模擬器</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0f0f13;color:#ddd;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:20px;}
+h1{font-size:18px;color:#fff;margin-bottom:18px;font-weight:500;letter-spacing:.04em;}
+.layout{display:grid;grid-template-columns:360px 1fr;gap:18px;align-items:start;}
+.settings{display:flex;flex-direction:column;gap:14px;}
+.sec-card{background:#1a1a22;border:0.5px solid #2e2e3a;border-radius:10px;padding:14px 16px;}
+.sec-title{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px;}
+.sec-title.blue{color:#5B9BD5;}.sec-title.amber{color:#C9922A;}.sec-title.gray{color:#888;}
+.field-row{display:flex;flex-direction:column;gap:5px;margin-bottom:10px;}
+.field-row:last-child{margin-bottom:0;}
+.field-label{font-size:11px;color:#888;}
+input[type=number]{background:#111117;border:0.5px solid #333;border-radius:5px;color:#ddd;font-size:13px;padding:5px 7px;width:70px;text-align:center;}
+input[type=number]:focus{outline:none;border-color:#5B9BD5;}
+input[type=text]{background:#111117;border:0.5px solid #333;border-radius:5px;color:#ddd;font-size:13px;padding:5px 10px;width:100%;}
+input[type=text]:focus{outline:none;border-color:#5B9BD5;}
+select{background:#111117;border:0.5px solid #333;border-radius:5px;color:#ddd;font-size:13px;padding:5px 8px;width:100%;}
+select:focus{outline:none;border-color:#5B9BD5;}
+button.run{width:100%;background:#2255AA;border:none;border-radius:7px;color:#fff;font-size:14px;font-weight:600;padding:11px;cursor:pointer;transition:background .15s;}
+button.run:hover{background:#2D66CC;}
+.hint{font-size:10px;color:#555;margin-top:4px;}
+.results{display:flex;flex-direction:column;gap:14px;}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;}
+.card{background:#1a1a22;border:0.5px solid #2e2e3a;border-radius:8px;padding:12px 14px;}
+.card-lbl{font-size:11px;color:#888;margin-bottom:4px;}
+.card-val{font-size:22px;font-weight:600;color:#fff;}
+.card-sub{font-size:11px;color:#555;margin-top:3px;}
+.res-card{background:#1a1a22;border:0.5px solid #2e2e3a;border-radius:10px;padding:14px 16px;}
+.res-title{font-size:12px;font-weight:600;letter-spacing:.06em;color:#888;margin-bottom:10px;text-transform:uppercase;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{text-align:left;padding:6px 8px;color:#666;border-bottom:1px solid #222;font-weight:500;}
+td{padding:6px 8px;border-bottom:0.5px solid #1e1e26;}
+td:not(:first-child){text-align:right;}
+.bar-wrap{display:flex;align-items:center;gap:8px;}
+.bar-bg{flex:1;height:7px;background:#1e1e26;border-radius:4px;overflow:hidden;}
+.bar-f{height:100%;border-radius:4px;}
+.info-bar{background:#141420;border:0.5px solid #2a2a3a;border-radius:8px;padding:10px 14px;font-size:12px;color:#888;line-height:1.9;}
+.info-bar strong{color:#ddd;font-weight:500;}
+.empty{color:#444;font-size:13px;text-align:center;padding:40px 0;}
+.timing-row{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;}
+.timing-result{margin-top:10px;font-size:12px;color:#aaa;line-height:2;}
+</style>
+</head>
+<body>
+<h1>🐉 火龍數值模擬器</h1>
+<div class="layout">
+<div class="settings">
+  <div class="sec-card">
+    <div class="sec-title gray">模擬設定</div>
+    <div class="field-row">
+      <div class="field-label">模擬局數</div>
+      <select id="simN">
+        <option value="1000">1,000 局</option>
+        <option value="5000">5,000 局</option>
+        <option value="10000" selected>10,000 局</option>
+        <option value="30000">30,000 局</option>
+        <option value="100000">100,000 局</option>
+      </select>
+    </div>
+    <div class="hint">局數越大結果越穩定，但計算較慢</div>
+  </div>
+  <div class="sec-card">
+    <div class="sec-title blue">小火設定</div>
+    <div class="field-row">
+      <div class="field-label">噴火次數（逗號分隔）</div>
+      <input type="text" id="ss" value="2,3,4,5,6">
+    </div>
+    <div class="field-row">
+      <div class="field-label">次數對應權重（數量需相同）</div>
+      <input type="text" id="ssw" value="45,30,15,8,2">
+    </div>
+    <div class="field-row">
+      <div class="field-label">噴火倍率（x）</div>
+      <input type="text" id="sm" value="20,30,50">
+    </div>
+    <div class="field-row">
+      <div class="field-label">倍率對應權重</div>
+      <input type="text" id="smw" value="50,30,20">
+    </div>
+  </div>
+  <div class="sec-card">
+    <div class="sec-title amber">大火設定</div>
+    <div class="field-row">
+      <div class="field-label">噴火次數（0=不出現，逗號分隔）</div>
+      <input type="text" id="bs" value="0,1,2,3">
+    </div>
+    <div class="field-row">
+      <div class="field-label">次數對應權重</div>
+      <input type="text" id="bsw" value="40,35,18,7">
+    </div>
+    <div class="field-row">
+      <div class="field-label">噴火倍率（x）</div>
+      <input type="text" id="bm" value="80,100,200,500">
+    </div>
+    <div class="field-row">
+      <div class="field-label">倍率對應權重</div>
+      <input type="text" id="bmw" value="73,17,8,2">
+    </div>
+  </div>
+  <button class="run" onclick="runSim()">▶ 開始模擬</button>
+</div>
+<div class="results" id="results">
+  <div class="empty">調整左側參數後按「開始模擬」</div>
+</div>
+</div>
+
+<script>
+var RANGE_DEF=[
+  {l:'40 ~ 150x',    min:40,   max:150,  c:'#378ADD'},
+  {l:'150 ~ 300x',   min:150,  max:300,  c:'#185FA5'},
+  {l:'300 ~ 600x',   min:300,  max:600,  c:'#3B6D11'},
+  {l:'600 ~ 1000x',  min:600,  max:1000, c:'#EF9F27'},
+  {l:'1000 ~ 1500x', min:1000, max:1500, c:'#BA7517'},
+  {l:'1500x 以上',   min:1500, max:999999,c:'#D85A30'}
+];
+
+var _tc={}, _N=0, _ss=[], _bs=[], _tsc={}, _tbc={};
+
+function parseList(id){
+  return document.getElementById(id).value
+    .split(',').map(function(s){return +s.trim();})
+    .filter(function(v){return !isNaN(v);});
+}
+
+function validate(){
+  var ss=parseList('ss'), ssw=parseList('ssw');
+  var sm=parseList('sm'), smw=parseList('smw');
+  var bs=parseList('bs'), bsw=parseList('bsw');
+  var bm=parseList('bm'), bmw=parseList('bmw');
+  if(ss.length!==ssw.length) return '小火：次數與權重數量不一致';
+  if(sm.length!==smw.length) return '小火：倍率與權重數量不一致';
+  if(bs.length!==bsw.length) return '大火：次數與權重數量不一致';
+  if(bm.length!==bmw.length) return '大火：倍率與權重數量不一致';
+  if(ss.length===0||sm.length===0) return '小火參數不完整';
+  if(bs.length===0||bm.length===0) return '大火參數不完整';
+  return null;
+}
+
+function wr(v,w){
+  var t=0,i; for(i=0;i<w.length;i++) t+=w[i];
+  var r=Math.random()*t;
+  for(i=0;i<v.length;i++){r-=w[i];if(r<=0)return v[i];}
+  return v[v.length-1];
+}
+function evf(v,w){
+  var t=0,s=0,i;
+  for(i=0;i<w.length;i++) t+=w[i];
+  for(i=0;i<v.length;i++) s+=v[i]*w[i];
+  return s/t;
+}
+
+function pct(n,tot){return (n/tot*100).toFixed(2)+'%';}
+function barHtml(n,maxN,color){
+  var w=(n/maxN*100).toFixed(1);
+  return '<div class="bar-wrap"><div class="bar-bg"><div class="bar-f" style="width:'+w+'%;background:'+color+'"></div></div></div>';
+}
+
+function updateTimings(){
+  var secS=+(document.getElementById('secSmall').value)||1.5;
+  var secB=+(document.getElementById('secBig').value)||2.5;
+  var N2=_N;
+  if(!N2) return;
+  // 需要用分開的小火/大火次數統計
+  var tsc=_tsc, tbc=_tbc; // small cnt, big cnt per simulation
+  var minS=Math.min.apply(null,_ss), maxS=Math.max.apply(null,_ss);
+  var minB=0, maxB=Math.max.apply(null,_bs);
+  var evS=0, evB=0;
+  var si, bi;
+  for(si=minS;si<=maxS;si++) evS+=si*((tsc[si]||0)/N2);
+  for(bi=minB;bi<=maxB;bi++) evB+=bi*((tbc[bi]||0)/N2);
+  var evSec=(evS*secS+evB*secB).toFixed(2);
+  var lines='小火平均 '+evS.toFixed(2)+' 次 × '+secS+'s = <strong style="color:#5B9BD5">'+(evS*secS).toFixed(2)+'s</strong>　';
+  lines+='大火平均 '+evB.toFixed(2)+' 次 × '+secB+'s = <strong style="color:#C9922A">'+(evB*secB).toFixed(2)+'s</strong><br>';
+  lines+='<strong style="color:#fff">平均表演時長：'+evSec+' 秒</strong>';
+  document.getElementById('timingResult').innerHTML=lines;
+}
+
+function runSim(){
+  var err=validate();
+  if(err){alert('❌ 參數錯誤：'+err);return;}
+
+  var N=+document.getElementById('simN').value;
+  var ss=parseList('ss'), ssw=parseList('ssw');
+  var sm=parseList('sm'), smw=parseList('smw');
+  var bs=parseList('bs'), bsw=parseList('bsw');
+  var bm=parseList('bm'), bmw=parseList('bmw');
+
+  var ssEV=evf(ss,ssw), smEV=evf(sm,smw);
+  var bsEV=evf(bs,bsw), bmEV=evf(bm,bmw);
+  var theoryEV=(ssEV*smEV+bsEV*bmEV).toFixed(2);
+  var maxPrize=Math.max.apply(null,ss)*Math.max.apply(null,sm)+Math.max.apply(null,bs)*Math.max.apply(null,bm);
+  var minPrize=Math.min.apply(null,ss)*Math.min.apply(null,sm);
+
+  var ranges=[];
+  for(var ri=0;ri<RANGE_DEF.length;ri++){
+    if(RANGE_DEF[ri].min<=maxPrize) ranges.push({l:RANGE_DEF[ri].l,min:RANGE_DEF[ri].min,max:RANGE_DEF[ri].max,c:RANGE_DEF[ri].c});
+  }
+  if(ranges.length>0) ranges[ranges.length-1].max=maxPrize+1;
+
+  var rc=[];for(var k=0;k<ranges.length;k++) rc.push(0);
+  var bigCntMap={}, totalCnt={}, smallCnt={}, bigCnt2={};
+  for(var bi=0;bi<bs.length;bi++) bigCntMap[bs[bi]]=0;
+  var total=0, maxV=0, minV=999999, bigFireOcc=0;
+  var i,j;
+  for(i=0;i<N;i++){
+    var sShots=wr(ss,ssw);
+    var sum=0;
+    for(j=0;j<sShots;j++) sum+=wr(sm,smw);
+    var bShots=wr(bs,bsw);
+    bigCntMap[bShots]=(bigCntMap[bShots]||0)+1;
+    if(bShots>0) bigFireOcc++;
+    for(j=0;j<bShots;j++) sum+=wr(bm,bmw);
+    var tShots=sShots+bShots;
+    totalCnt[tShots]=(totalCnt[tShots]||0)+1;
+    smallCnt[sShots]=(smallCnt[sShots]||0)+1;
+    bigCnt2[bShots]=(bigCnt2[bShots]||0)+1;
+    total+=sum;
+    if(sum>maxV) maxV=sum;
+    if(sum<minV) minV=sum;
+    for(var ki=0;ki<ranges.length;ki++){
+      if(sum>=ranges[ki].min&&sum<ranges[ki].max) rc[ki]++;
+    }
+  }
+
+  _tc=totalCnt; _N=N; _ss=ss; _bs=bs; _tsc=smallCnt; _tbc=bigCnt2;
+
+  var avg=(total/N).toFixed(2);
+  var maxN=0; for(var m=0;m<rc.length;m++) if(rc[m]>maxN) maxN=rc[m]; if(maxN===0) maxN=1;
+  var bsTot=0; for(var bt=0;bt<bsw.length;bt++) bsTot+=bsw[bt];
+  var ssTot=0; for(var st=0;st<ssw.length;st++) ssTot+=ssw[st];
+
+  // 總次數最大條高
+  var tcVals=Object.values(totalCnt);
+  var maxTN=tcVals.length?Math.max.apply(null,tcVals):1;
+  var minT=Math.min.apply(null,ss), maxT=Math.max.apply(null,ss)+Math.max.apply(null,bs);
+
+  // 建 HTML
+  var r=document.getElementById('results');
+
+  // info bar
+  var d=document.createElement('div');
+  d.className='info-bar';
+  d.innerHTML='理論期望：<strong>'+theoryEV+'x</strong>　理論最大：<strong>'+maxPrize.toLocaleString()+'x</strong>　小火貢獻：<strong style="color:#5B9BD5">'+(ssEV*smEV).toFixed(2)+'x</strong>　大火貢獻：<strong style="color:#C9922A">'+(bsEV*bmEV).toFixed(2)+'x</strong>';
+  
+  // cards
+  var cd=document.createElement('div'); cd.className='cards';
+  cd.innerHTML='<div class="card"><div class="card-lbl">模擬平均回報</div><div class="card-val">'+avg+'x</div><div class="card-sub">理論 '+theoryEV+'x</div></div>'+
+    '<div class="card"><div class="card-lbl">本次最高</div><div class="card-val">'+maxV.toLocaleString()+'x</div><div class="card-sub">理論上限 '+maxPrize.toLocaleString()+'x</div></div>'+
+    '<div class="card"><div class="card-lbl">本次最低</div><div class="card-val">'+minV+'x</div><div class="card-sub">理論下限 '+minPrize+'x</div></div>'+
+    '<div class="card"><div class="card-lbl">有大火局數</div><div class="card-val">'+bigFireOcc.toLocaleString()+'</div><div class="card-sub">'+(bigFireOcc/N*100).toFixed(1)+'%</div></div>'+
+    '<div class="card"><div class="card-lbl">模擬局數</div><div class="card-val">'+N.toLocaleString()+'</div><div class="card-sub">本次模擬</div></div>';
+
+  // 倍率區間
+  var r1=document.createElement('div'); r1.className='res-card';
+  var t1='<div class="res-title">開獎倍率區間分佈</div><table><tr><th>倍率區間</th><th>次數</th><th>機率</th><th>分佈</th></tr>';
+  for(var ri2=0;ri2<ranges.length;ri2++){
+    t1+='<tr><td style="font-weight:500">'+ranges[ri2].l+'</td><td>'+rc[ri2].toLocaleString()+'</td><td>'+pct(rc[ri2],N)+'</td><td>'+barHtml(rc[ri2],maxN,ranges[ri2].c)+'</td></tr>';
+  }
+  t1+='</table>'; r1.innerHTML=t1;
+
+  // 總次數分佈
+  var r2=document.createElement('div'); r2.className='res-card';
+  var t2='<div class="res-title">總噴火次數分佈（小火＋大火）</div>';
+  t2+='<div style="font-size:11px;color:#666;margin-bottom:10px;">可用於預估每局表演時長</div>';
+  t2+='<table><tr><th>總次數</th><th>次數</th><th>機率</th><th>分佈</th></tr>';
+  for(var tt=minT;tt<=maxT;tt++){
+    var tc2=totalCnt[tt]||0;
+    if(tc2===0) continue;
+    t2+='<tr><td style="font-weight:500">'+tt+' 次</td><td>'+tc2.toLocaleString()+'</td><td>'+pct(tc2,N)+'</td><td>'+barHtml(tc2,maxTN,'#7755BB')+'</td></tr>';
+  }
+  t2+='</table>';
+  t2+='<div style="margin-top:12px;padding-top:10px;border-top:0.5px solid #222;">';
+  t2+='<div style="font-size:11px;color:#888;margin-bottom:8px;">預估表演時長</div>';
+  t2+='<div class="timing-row">';
+  t2+='<span style="font-size:12px;color:#5B9BD5;">小火每次：</span>';
+  t2+='<input type="number" id="secSmall" value="1.5" step="0.5" min="0.5" max="10" oninput="updateTimings()" style="width:65px;background:#111117;border:0.5px solid #5B9BD5;border-radius:5px;color:#ddd;font-size:13px;padding:5px 8px;text-align:center;">';
+  t2+='<span style="font-size:12px;color:#888;">秒</span>';
+  t2+='<span style="font-size:12px;color:#C9922A;margin-left:12px;">大火每次：</span>';
+  t2+='<input type="number" id="secBig" value="2.5" step="0.5" min="0.5" max="10" oninput="updateTimings()" style="width:65px;background:#111117;border:0.5px solid #C9922A;border-radius:5px;color:#ddd;font-size:13px;padding:5px 8px;text-align:center;">';
+  t2+='<span style="font-size:12px;color:#888;">秒</span>';
+  t2+='</div>';
+  t2+='<div class="timing-result" id="timingResult"></div></div>';
+  r2.innerHTML=t2;
+
+  // 大火次數
+  var r3=document.createElement('div'); r3.className='res-card';
+  var maxBN=0;
+  for(var bni=0;bni<bs.length;bni++){var bv2=bigCntMap[bs[bni]]||0;if(bv2>maxBN)maxBN=bv2;}
+  if(maxBN===0) maxBN=1;
+  var t3='<div class="res-title">大火次數分佈</div><table><tr><th>大火次數</th><th>理論機率</th><th>模擬機率</th><th>出現次數</th><th>分佈</th></tr>';
+  for(var bi2=0;bi2<bs.length;bi2++){
+    var bv=bs[bi2], bc=bigCntMap[bv]||0;
+    t3+='<tr><td>'+(bv===0?'不出現':bv+' 次')+'</td><td>'+pct(bsw[bi2],bsTot)+'</td><td>'+pct(bc,N)+'</td><td>'+bc.toLocaleString()+'</td><td>'+barHtml(bc,maxBN,'#C9922A')+'</td></tr>';
+  }
+  t3+='</table>'; r3.innerHTML=t3;
+
+  // 小火次數（格式同大火：次數/理論機率/模擬機率/出現次數/分佈）
+  var maxSN=0;
+  for(var ssi=0;ssi<ss.length;ssi++){ var sv=smallCnt[ss[ssi]]||0; if(sv>maxSN)maxSN=sv; }
+  if(maxSN===0) maxSN=1;
+  var r4=document.createElement('div'); r4.className='res-card';
+  var t4='<div class="res-title">小火次數分佈</div><table><tr><th>小火次數</th><th>理論機率</th><th>模擬機率</th><th>出現次數</th><th>分佈</th></tr>';
+  for(var si=0;si<ss.length;si++){
+    var sc=smallCnt[ss[si]]||0;
+    t4+='<tr><td>'+ss[si]+' 次</td><td>'+pct(ssw[si],ssTot)+'</td><td>'+pct(sc,N)+'</td><td>'+sc.toLocaleString()+'</td><td>'+barHtml(sc,maxSN,'#378ADD')+'</td></tr>';
+  }
+  t4+='</table>'; r4.innerHTML=t4;
+
+  r.innerHTML='';
+  r.appendChild(d); r.appendChild(cd);
+  r.appendChild(r1); r.appendChild(r2);
+  r.appendChild(r3); r.appendChild(r4);
+
+  setTimeout(updateTimings,50);
+}
+</script>
+</body>
+</html>
