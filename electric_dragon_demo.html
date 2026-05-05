@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>電龍表演模擬器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;overflow:hidden;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;}
+#wrap{position:relative;overflow:hidden;}
+#bgImg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+#gameCanvas{position:absolute;inset:0;}
+#hud{position:absolute;inset:0;pointer-events:none;}
+
+/* ── 狀態文字 ── */
+#statusEl{
+  position:absolute;top:1.8%;left:50%;transform:translateX(-50%);
+  font-size:clamp(11px,1.4vw,16px);color:#a0d8ff;
+  background:#00000066;padding:3px 14px;border-radius:20px;
+  white-space:nowrap;font-family:sans-serif;
+}
+
+/* ── 倍率文字 ── */
+#mulEl{
+  position:absolute;left:0;right:0;top:32%;text-align:center;
+  font-size:clamp(40px,7vw,80px);font-weight:700;
+  color:#00eeff;opacity:0;line-height:1;font-family:sans-serif;
+  text-shadow:0 0 30px #0099ff,0 2px 0 #005080;
+}
+
+/* ── 底部資訊列 ── */
+.bb{
+  position:absolute;bottom:0;left:0;right:0;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:clamp(5px,1%,10px) clamp(10px,2%,20px);
+  background:#000000bb;pointer-events:all;
+}
+.cd{display:flex;align-items:center;gap:6px;color:#88ccff;font-size:clamp(11px,1.3vw,15px);font-family:sans-serif;}
+.ci{
+  width:clamp(16px,2vw,22px);height:clamp(16px,2vw,22px);border-radius:50%;
+  background:#0055cc;border:2px solid #0099ff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:clamp(8px,1vw,11px);color:#cceeff;font-weight:700;
+}
+.lv{font-size:clamp(9px,1vw,12px);color:#88aabb;font-family:sans-serif;}
+.br{display:flex;align-items:center;gap:6px;}
+.bl{font-size:clamp(9px,1vw,12px);color:#88aabb;font-family:sans-serif;}
+.bbn{
+  width:clamp(18px,2.2vw,26px);height:clamp(18px,2.2vw,26px);border-radius:50%;
+  background:#111533;border:1px solid #2255aa;color:#88ccff;
+  font-size:clamp(12px,1.6vw,18px);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;pointer-events:all;
+}
+.bv{font-size:clamp(12px,1.5vw,16px);font-weight:600;color:#88ccff;min-width:36px;text-align:center;font-family:sans-serif;}
+
+/* ── 右側按鈕群 ── */
+.ab{
+  position:absolute;right:clamp(6px,1.2%,14px);top:50%;transform:translateY(-50%);
+  width:clamp(44px,6.5vw,70px);height:clamp(44px,6.5vw,70px);border-radius:50%;
+  background:#001a66ec;border:3px solid #0077ff;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;pointer-events:all;
+}
+#winEl{display:none;font-size:clamp(13px,1.8vw,18px);font-weight:600;color:#44ccff;margin-left:8px;font-family:sans-serif;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <!-- ① 背景圖片（與火龍同路徑，替換成電龍背景即可）-->
+  <img id="bgImg" src="background2.png" alt="">
+
+  <!-- ② 遊戲 Canvas -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- ③ HUD 層 -->
+  <div id="hud">
+    <div id="statusEl"></div>
+    <div id="mulEl"></div>
+
+    <!-- ── 獎圈（結算時顯示）── -->
+    <div id="prizeWrap" style="
+      position:absolute;inset:0;display:flex;visibility:hidden;
+      align-items:center;justify-content:flex-end;flex-direction:column;
+      gap:8px;pointer-events:none;opacity:0;transition:opacity .4s;padding-bottom:9%;">
+      <img id="prizeCircleImg" src="effect/prize_circle.png" style="width:clamp(160px,20vw,260px);height:auto;">
+      <div id="prizeAmtEl" style="
+        color:#44ddff;font-size:clamp(20px,3vw,38px);font-weight:700;
+        text-shadow:0 2px 12px #0088ff,0 1px 0 #003366;
+        font-family:sans-serif;letter-spacing:.04em;"></div>
+    </div>
+
+    <!-- ── 底部列 ── -->
+    <div class="bb">
+      <span class="lv">LV.C3065 SU</span>
+      <div class="cd">
+        <div class="ci" id="ciEl">⚡</div>
+        <span>999,999,999</span>
+        <span id="winEl"></span>
+      </div>
+      <div class="br">
+        <span class="bl">BET</span>
+        <button class="bbn" onclick="chgBet(-1)">-</button>
+        <span class="bv" id="bval">999</span>
+        <button class="bbn" onclick="chgBet(1)">+</button>
+      </div>
+    </div>
+
+    <!-- ── 右側：射擊鈕 + 重置鈕 ── -->
+    <div style="position:absolute;right:clamp(6px,1.2%,14px);top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:all;">
+      <!-- 射擊鈕 -->
+      <div class="ab" id="abtn" onclick="shoot()">
+        <svg width="62%" viewBox="0 0 38 38" fill="none" stroke="#88ccff" stroke-linecap="round">
+          <circle cx="19" cy="19" r="14" stroke-width="1.8" opacity=".6"/>
+          <circle cx="19" cy="19" r="5.5" stroke-width="2.2"/>
+          <line x1="19" y1="0"  x2="19" y2="10"  stroke-width="2.2"/>
+          <line x1="19" y1="28" x2="19" y2="38"  stroke-width="2.2"/>
+          <line x1="0"  y1="19" x2="10" y2="19"  stroke-width="2.2"/>
+          <line x1="28" y1="19" x2="38" y2="19"  stroke-width="2.2"/>
+        </svg>
+      </div>
+      <!-- 重置鈕（齒輪）-->
+      <div onclick="resetGame()" title="重置" style="
+        width:clamp(26px,3.5vw,38px);height:clamp(26px,3.5vw,38px);border-radius:50%;
+        background:#00000088;border:1.5px solid #334466;
+        display:flex;align-items:center;justify-content:center;cursor:pointer;">
+        <svg width="55%" viewBox="0 0 24 24" fill="none" stroke="#7799bb" stroke-width="1.8" stroke-linecap="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </div>
+    </div>
+  </div><!-- /hud -->
+</div><!-- /wrap -->
+
+<script>
+// ═══════════════════════════════════════════════════
+// 基礎常數（與火龍相同的座標系）
+// ═══════════════════════════════════════════════════
+const BASE_W = 1600, BASE_H = 640;
+
+// 龍的繪製錨點（可依電龍圖片調整）
+const DCX = 198, DCY = 155;
+
+// 龍的移動邊界
+const TX_MIN = 150, TX_MAX = 1000, TY_MIN = -100, TY_MAX = 200;
+
+// 金幣動畫張數
+const COIN_FPS = 15, COIN_TOTAL = 15;
+
+// ═══════════════════════════════════════════════════
+// 狀態
+// ═══════════════════════════════════════════════════
+let shots = 0, busy = false, bet = 999, rafId = null;
+let curTx = 602, curTy = 115, curAng = 0;
+let allCoins = [], scale = 1;
+let canvas, ctx, wrap;
+
+// ── Phase 狀態 ──
+let phase = 'idle'; // idle | shake | spin | done
+
+// ── Phase 1：晃動 ──
+const SHAKE_DUR = 1500;       // 晃動持續時間 ms
+const SHAKE_AMP = 18;         // 晃動幅度（canvas px）
+let   shakeStartT = 0;
+
+// ── Phase 2：旋轉 ──
+const SPIN_ACCEL_DUR = 900;   // 加速到最大轉速所需時間 ms
+const SPIN_MAX_SPD   = 25;   // 最大環繞轉速 deg/frame
+let   spinSpd    = 0;
+let   spinStartT = 0;
+let   ringAngle  = 0;         // 電光環目前角度（度）
+
+// ── Phase 3：丟球（數值規格）──────────────────────
+// 小球顆數 / 權重
+const SMALL_SHOTS   = [2, 3, 4, 5, 6];
+const SMALL_SHOTS_W = [45, 30, 15, 8, 2];
+// 小球倍率 / 權重
+const SMALL_MULS    = [20, 30, 50];
+const SMALL_MULS_W  = [50, 30, 20];
+
+// 大球顆數 / 權重（0 = 不出現）
+const BIG_SHOTS     = [0, 1, 2, 3];
+const BIG_SHOTS_W   = [40, 35, 18, 7];
+// 大球倍率 / 權重
+const BIG_MULS      = [80, 100, 200, 500];
+const BIG_MULS_W    = [73, 17, 8, 2];
+// ──────────────────────────────────────────────────
+
+const BALL_INTERVAL = 500;    // 每顆球間隔 ms
+let   ballsFired    = 0;
+let   lastBallT     = 0;
+let   ballSequence  = [];     // 預先決定好的球序列 [{type,mul,r}, ...]
+
+// ── 閃電球陣列 ──
+// 每顆：{ sx,sy, x,y, tx,ty, r, mul, type, alpha, t0, arrived }
+let eBalls = [];
+
+// 龍圖片（11.png = 待機，12.png = 旋轉用，面向左）
+let dragonImgs = [], dragonImgLoaded = false;
+let spinDragonImg = null, spinDragonLoaded = false;
+let currentDragonIdx = 0;
+window._dragonScale = 0.72;
+
+// 金幣、獎圈
+let coinImgs = [], prizeImg = null;
+let prizeVal = 0;
+
+// ═══════════════════════════════════════════════════
+// 圖片預載
+// ═══════════════════════════════════════════════════
+function loadDragon(){
+  const img = new Image();
+  img.src = 'dragon/11.png';
+  img.onload = () => { dragonImgLoaded = true; };
+  dragonImgs.push(img);
+}
+
+function loadSpinDragon(){
+  spinDragonImg = new Image();
+  spinDragonImg.src = 'dragon/12.png';
+  spinDragonImg.onload = () => { spinDragonLoaded = true; };
+}
+
+function loadCoins(){
+  let loaded = 0;
+  for(let i = 1; i <= COIN_TOTAL; i++){
+    const img = new Image();
+    img.src = 'coins/C' + String(i).padStart(2,'0') + '.png';
+    img.onload = () => { loaded++; };
+    coinImgs.push(img);
+  }
+}
+
+function loadPrize(){
+  prizeImg = new Image();
+  prizeImg.src = 'effect/prize_circle.png';
+}
+
+// ═══════════════════════════════════════════════════
+// 畫布縮放
+// ═══════════════════════════════════════════════════
+function resize(){
+  const ww = window.innerWidth, wh = window.innerHeight;
+  const s = Math.min(ww / BASE_W, wh / BASE_H);
+  scale = s;
+  wrap.style.width  = BASE_W * s + 'px';
+  wrap.style.height = BASE_H * s + 'px';
+  canvas.width  = BASE_W;
+  canvas.height = BASE_H;
+  canvas.style.width  = BASE_W * s + 'px';
+  canvas.style.height = BASE_H * s + 'px';
+}
+
+// ═══════════════════════════════════════════════════
+// 龍的繪製
+// ═══════════════════════════════════════════════════
+function drawDragon(ctx){
+  ctx.save();
+  ctx.translate(DCX + curTx, DCY + curTy);
+  ctx.rotate(curAng * Math.PI / 180);
+  ctx.scale(0.72, 0.72);
+  ctx.translate(-DCX, -DCY);
+
+  const drImg = dragonImgs[currentDragonIdx];
+  const iw = 503, ih = 496;
+  const imgX = DCX - iw / 2, imgY = DCY - ih / 2;
+
+  if(dragonImgLoaded && drImg && drImg.complete && drImg.naturalWidth > 0){
+    ctx.drawImage(drImg, imgX, imgY, iw, ih);
+  } else {
+    // SVG fallback（圖片未就緒時顯示）
+    ctx.beginPath();
+    ctx.ellipse(198, 158, 84, 59, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#001a66'; ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(198, 172, 54, 37, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#0044cc'; ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(265, 78, 42, 35, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#0033aa'; ctx.fill();
+    // 眼睛
+    ctx.beginPath(); ctx.arc(250, 68, 10, 0, Math.PI*2);
+    ctx.fillStyle = '#00aaff'; ctx.fill();
+    ctx.beginPath(); ctx.arc(278, 68, 10, 0, Math.PI*2);
+    ctx.fillStyle = '#00aaff'; ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════
+// 金幣繪製
+// ═══════════════════════════════════════════════════
+function drawCoins(){
+  const now = Date.now();
+  allCoins.forEach(c => {
+    const frame = Math.floor((now - c.born) / (1000 / COIN_FPS)) % COIN_TOTAL;
+    const img = coinImgs[frame];
+    if(img && img.complete && img.naturalWidth > 0){
+      ctx.globalAlpha = c.alpha;
+      ctx.drawImage(img, c.x - 24, c.y - 24, 48, 48);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.beginPath(); ctx.arc(c.x, c.y, 12, 0, Math.PI * 2);
+      ctx.fillStyle = '#00ddff'; ctx.globalAlpha = c.alpha; ctx.fill(); ctx.globalAlpha = 1;
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// 金幣回收（飛向財產圖示）
+// ═══════════════════════════════════════════════════
+function eoc(t){ return 1 - Math.pow(1 - t, 3); }
+
+function collectCoins(cb){
+  const total = allCoins.length;
+  if(!total){ cb && cb(); return; }
+  const ciEl = document.getElementById('ciEl');
+  const ciRect = ciEl.getBoundingClientRect();
+  const wrapRect = wrap.getBoundingClientRect();
+  const targetX = ((ciRect.left - wrapRect.left) + ciRect.width  / 2) / scale;
+  const targetY = ((ciRect.top  - wrapRect.top)  + ciRect.height / 2) / scale;
+  allCoins.forEach((c, i) => {
+    setTimeout(() => {
+      const sx = c.x, sy = c.y; let t2 = 0;
+      const mv = setInterval(() => {
+        t2 += 0.06; const et = eoc(Math.min(t2, 1));
+        c.x = sx + (targetX - sx) * et;
+        c.y = sy + (targetY - sy) * et;
+        c.alpha = 1 - Math.min(t2, 1);
+        if(t2 >= 1) clearInterval(mv);
+      }, 16);
+    }, i * 22);
+  });
+  setTimeout(() => { allCoins = []; cb && cb(); }, total * 22 + 700);
+}
+
+// ═══════════════════════════════════════════════════
+// 主繪製迴圈
+// ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// 工具：加權隨機
+// ═══════════════════════════════════════════════════
+function wr(vals, weights){
+  let total = 0;
+  for(let i = 0; i < weights.length; i++) total += weights[i];
+  let r = Math.random() * total;
+  for(let i = 0; i < vals.length; i++){
+    r -= weights[i];
+    if(r <= 0) return vals[i];
+  }
+  return vals[vals.length - 1];
+}
+
+// ── 每局開始旋轉前，預先決定所有球的種類＋倍率 ──
+function buildBallSequence(){
+  ballSequence = [];
+  const smallCount = wr(SMALL_SHOTS, SMALL_SHOTS_W);
+  const bigCount   = wr(BIG_SHOTS,   BIG_SHOTS_W);
+
+  for(let i = 0; i < smallCount; i++){
+    ballSequence.push({ type: 'small', mul: wr(SMALL_MULS, SMALL_MULS_W), r: 28 });
+  }
+  for(let i = 0; i < bigCount; i++){
+    ballSequence.push({ type: 'big',   mul: wr(BIG_MULS,   BIG_MULS_W),   r: 46 });
+  }
+  // 洗牌，讓大小球隨機交錯
+  for(let i = ballSequence.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [ballSequence[i], ballSequence[j]] = [ballSequence[j], ballSequence[i]];
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// 電光環繪製（橢圓軌道弧線）
+// arcRange: [startAngle, endAngle]（弧度），決定畫哪半段
+// alpha / lineW：視覺深度參數
+// ═══════════════════════════════════════════════════
+function drawRingArcs(cx, cy, startA, endA, alpha, lineW){
+  const rx = 210, ry = 78;           // 橢圓半長軸 / 半短軸
+  const ARC_COUNT = 2;               // 同時幾條弧（相位差 180°）
+  const STEPS = 80;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.lineWidth   = lineW;
+  ctx.lineCap     = 'round';
+  ctx.shadowColor = '#00aaff';
+  ctx.shadowBlur  = lineW * 5;
+
+  for(let arc = 0; arc < ARC_COUNT; arc++){
+    const phaseOffset = (ringAngle * Math.PI / 180) + arc * Math.PI;
+
+    // 電弧顏色在青/白之間閃爍
+    const flicker = 0.75 + Math.sin(Date.now() * 0.012 + arc * 2.1) * 0.25;
+    ctx.strokeStyle = `rgba(${Math.round(80 + 175 * flicker)},${Math.round(200 + 55 * flicker)},255,1)`;
+
+    ctx.beginPath();
+    let first = true;
+    for(let i = 0; i <= STEPS; i++){
+      const a  = startA + (endA - startA) * (i / STEPS);
+      const x  = cx + Math.cos(a + phaseOffset) * rx;
+      const y  = cy + Math.sin(a + phaseOffset) * ry;
+      first ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      first = false;
+    }
+    ctx.stroke();
+
+    // 弧線末端電火花節點
+    const tipA = endA + phaseOffset;
+    const tipX = cx + Math.cos(tipA) * rx;
+    const tipY = cy + Math.sin(tipA) * ry;
+    ctx.beginPath();
+    ctx.arc(tipX, tipY, lineW * 1.4, 0, Math.PI * 2);
+    ctx.fillStyle = '#cceeff';
+    ctx.fill();
+  }
+
+  ctx.shadowBlur  = 0;
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════
+// 電球繪製（固定在場上，無數值）
+// ═══════════════════════════════════════════════════
+function drawBalls(){
+  eBalls.forEach(b => {
+    ctx.save();
+    ctx.globalAlpha = b.alpha;
+
+    // 外光暈
+    const grd = ctx.createRadialGradient(b.x, b.y, b.r * 0.2, b.x, b.y, b.r * 1.8);
+    if(b.type === 'big'){
+      grd.addColorStop(0,   'rgba(150,230,255,0.6)');
+      grd.addColorStop(0.5, 'rgba(0,140,255,0.25)');
+      grd.addColorStop(1,   'rgba(0,60,200,0)');
+    } else {
+      grd.addColorStop(0,   'rgba(200,245,255,0.5)');
+      grd.addColorStop(0.5, 'rgba(80,180,255,0.2)');
+      grd.addColorStop(1,   'rgba(0,80,200,0)');
+    }
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r * 1.8, 0, Math.PI * 2);
+    ctx.fillStyle = grd;
+    ctx.fill();
+
+    // 球本體
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.fillStyle   = b.type === 'big' ? '#003eaa' : '#002277';
+    ctx.strokeStyle = b.type === 'big' ? '#44ddff' : '#88ccff';
+    ctx.lineWidth   = b.type === 'big' ? 3.5 : 2.5;
+    ctx.shadowColor = '#00aaff';
+    ctx.shadowBlur  = 12;
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // 倍率文字
+    const fs = b.type === 'big' ? Math.round(b.r * 0.65) : Math.round(b.r * 0.72);
+    ctx.font         = `700 ${fs}px sans-serif`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle    = '#ffffff';
+    ctx.shadowColor  = '#0044cc';
+    ctx.shadowBlur   = 4;
+    ctx.fillText(b.mul + 'x', b.x, b.y + 1);
+    ctx.shadowBlur   = 0;
+
+    // 高光
+    ctx.beginPath();
+    ctx.arc(b.x - b.r * 0.28, b.y - b.r * 0.28, b.r * 0.3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fill();
+
+    ctx.restore();
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// 電球生成（從龍中心飛往隨機落點，倍率從序列取得）
+// ═══════════════════════════════════════════════════
+const BALL_FLY_DUR = 700;
+
+function randBallTarget(){
+  const drCX = DCX + curTx, drCY = DCY + curTy;
+  let tx, ty, tries = 0;
+  do {
+    tx = 120 + Math.random() * (BASE_W - 240);
+    ty =  80 + Math.random() * (BASE_H - 180);
+    tries++;
+  } while(tries < 30 && Math.hypot(tx - drCX, ty - drCY) < 220);
+  return { tx, ty };
+}
+
+function spawnBall(){
+  const def = ballSequence[ballsFired];   // 從預先決定的序列取
+  if(!def) return;
+  const cx = DCX + curTx, cy = DCY + curTy;
+  const { tx, ty } = randBallTarget();
+  eBalls.push({
+    sx: cx, sy: cy, x: cx, y: cy, tx, ty,
+    r: def.r, type: def.type, mul: def.mul,
+    alpha: 1, t0: Date.now(), arrived: false,
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// Phase 更新（每幀呼叫）
+// ═══════════════════════════════════════════════════
+function updatePhase(now){
+  if(phase === 'shake'){
+    const t = (now - shakeStartT) / SHAKE_DUR;
+    if(t < 1){
+      curTx = 602 + Math.sin(t * Math.PI * 10) * SHAKE_AMP * (1 - t * 0.5);
+    } else {
+      curTx = 602;
+      phase = 'spin';
+      spinStartT = now;
+      lastBallT  = now;
+      ringAngle  = 0;
+      buildBallSequence();   // ← 旋轉開始時決定這局的球
+      setSt('');
+    }
+  }
+
+  if(phase === 'spin'){
+    const accelT = Math.min((now - spinStartT) / SPIN_ACCEL_DUR, 1);
+    spinSpd   = SPIN_MAX_SPD * accelT;
+    ringAngle += spinSpd;
+
+    if(now - lastBallT >= BALL_INTERVAL && ballsFired < ballSequence.length){
+      spawnBall();
+      ballsFired++;
+      lastBallT = now;
+    }
+
+    if(ballsFired >= ballSequence.length && ballSequence.length > 0 && now - lastBallT > 800){
+      phase = 'done';
+      busy  = false;
+      document.getElementById('abtn').style.opacity = '1';
+    }
+  }
+
+  // 更新電球飛行位置
+  eBalls.forEach(b => {
+    if(b.arrived) return;
+    const t = Math.min((now - b.t0) / BALL_FLY_DUR, 1);
+    const et = 1 - Math.pow(1 - t, 3);   // easeOutCubic
+    b.x = b.sx + (b.tx - b.sx) * et;
+    b.y = b.sy + (b.ty - b.sy) * et;
+    if(t >= 1) b.arrived = true;
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// 主繪製迴圈
+// ═══════════════════════════════════════════════════
+function render(){
+  const now = Date.now();
+  ctx.clearRect(0, 0, BASE_W, BASE_H);
+
+  updatePhase(now);
+
+  const spinning = (phase === 'spin' || phase === 'done');
+  const cx = DCX + curTx, cy = DCY + curTy;
+
+  // ① 電光環後段
+  if(spinning) drawRingArcs(cx, cy, Math.PI, Math.PI * 2, 0.38, 3);
+
+  // ② 金幣
+  drawCoins();
+
+  // ③ 龍本體
+  if(window._dragonScale > 0){
+    if(spinning && spinDragonLoaded){
+      // 與 drawDragon 完全相同的 transform 結構，只換圖片和尺寸
+      const iw = 603, ih = 414;
+      const imgX = DCX - iw / 2;
+      const imgY = DCY - ih / 2;
+      const facingLeft = (Math.floor(ringAngle / 180) % 2 === 0);
+
+      ctx.save();
+      ctx.translate(DCX + curTx, DCY + curTy); // 與 drawDragon 一致
+      ctx.scale(window._dragonScale, window._dragonScale);
+      ctx.translate(-DCX, -DCY);
+
+      if(facingLeft){
+        ctx.drawImage(spinDragonImg, imgX, imgY, iw, ih);
+      } else {
+        // 以圖片中心 (DCX) 做水平鏡像
+        ctx.translate(2 * DCX, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(spinDragonImg, imgX, imgY, iw, ih);
+      }
+      ctx.restore();
+    } else {
+      // 待機：用 11.png（走原本的 drawDragon）
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(window._dragonScale / 0.72, window._dragonScale / 0.72);
+      ctx.translate(-cx, -cy);
+      drawDragon(ctx);
+      ctx.restore();
+    }
+  }
+
+  // ④ 電光環前段（壓在龍上方）
+  if(spinning) drawRingArcs(cx, cy, 0, Math.PI, 0.85, 4.5);
+
+  // ⑤ 場上電球
+  drawBalls();
+
+  requestAnimationFrame(render);
+}
+
+// ═══════════════════════════════════════════════════
+// 工具
+// ═══════════════════════════════════════════════════
+function setDragon(tx, ty, ang){ curTx = tx; curTy = ty; curAng = ang; }
+function setSt(m){ document.getElementById('statusEl').textContent = m; }
+
+function chgBet(d){
+  const vs = [10,20,30,50,100,200,500,999];
+  let i = vs.indexOf(bet); if(i < 0) i = vs.length - 1;
+  i = Math.max(0, Math.min(vs.length - 1, i + d));
+  bet = vs[i]; document.getElementById('bval').textContent = bet;
+}
+
+// ═══════════════════════════════════════════════════
+// 獎圈顯示
+// ═══════════════════════════════════════════════════
+function showPrizeCircle(val){
+  const ci = document.getElementById('ciEl');
+  ci.style.transition = 'transform .25s'; ci.style.transform = 'scale(2.4)';
+  setTimeout(() => ci.style.transform = 'scale(1)', 350);
+
+  const w = document.getElementById('winEl');
+  w.style.display = 'inline'; w.textContent = ' +' + val + 'x';
+  w.style.opacity = '0'; w.style.transition = 'opacity .3s';
+  setTimeout(() => w.style.opacity = '1', 100);
+
+  const pw = document.getElementById('prizeWrap');
+  const amt = document.getElementById('prizeAmtEl');
+  amt.textContent = (val * bet).toLocaleString() + ' 金幣';
+  pw.style.visibility = 'visible'; pw.style.opacity = '0';
+  setTimeout(() => pw.style.opacity = '1', 50);
+
+  setTimeout(() => {
+    pw.style.opacity = '0'; w.style.opacity = '0';
+    setTimeout(() => { pw.style.visibility = 'hidden'; w.style.display = 'none'; }, 450);
+  }, 3500);
+
+  setSt('獲得 ' + val + 'x！');
+}
+
+// ═══════════════════════════════════════════════════
+// 射擊（空架構，流程待補）
+// ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// 射擊
+// ═══════════════════════════════════════════════════
+function shoot(){
+  if(busy || phase === 'spin') return;
+  shots++;
+
+  if(shots < 3){
+    setSt(['','命中！','再一發！'][shots]);
+    return;
+  }
+
+  // 第 3 發 → 鎖住，進入 Phase 1 晃動
+  busy  = true;
+  phase = 'shake';
+  shakeStartT  = Date.now();
+  ballsFired   = 0;
+  eBalls       = [];
+  spinSpd      = 0;
+  curAng       = 0;
+  document.getElementById('abtn').style.opacity = '.35';
+  setSt('命中！');
+}
+
+// ═══════════════════════════════════════════════════
+// 重置
+// ═══════════════════════════════════════════════════
+function resetGame(){
+  if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
+  shots = 0; busy = false;
+  curTx = 602; curTy = 115; curAng = 0;
+  currentDragonIdx = 0;
+  window._dragonScale = 0.72;
+  allCoins = []; eBalls = [];
+  phase = 'idle'; spinSpd = 0; ballsFired = 0; ringAngle = 0; ballSequence = [];
+  document.getElementById('abtn').style.opacity = '1';
+  document.getElementById('mulEl').style.opacity = '0';
+  document.getElementById('winEl').style.display = 'none';
+  const pw = document.getElementById('prizeWrap');
+  if(pw){ pw.style.visibility = 'hidden'; pw.style.opacity = '0'; }
+  setSt('');
+}
+
+// ═══════════════════════════════════════════════════
+// 初始化
+// ═══════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  wrap   = document.getElementById('wrap');
+  canvas = document.getElementById('gameCanvas');
+  ctx    = canvas.getContext('2d');
+  resize();
+  window.addEventListener('resize', resize);
+  loadDragon();
+  loadSpinDragon();
+  loadCoins();
+  loadPrize();
+  requestAnimationFrame(render);
+});
+</script>
+</body>
+</html>
