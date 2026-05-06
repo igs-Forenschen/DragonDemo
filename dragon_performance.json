@@ -1,0 +1,52 @@
+{
+  "balls": { //球的機率設定
+    "small": {
+      "shots":   [2, 3, 4, 5],
+      "shots_w": [25, 10, 8, 3],
+      "muls":    [20, 30, 40],
+      "muls_w":  [35, 20, 10],
+      "radius":  28
+    },
+    "big": {
+      "shots":   [1, 2, 3],
+      "shots_w": [25, 15, 5],
+      "muls":    [60, 80, 100],
+      "muls_w":  [50, 40, 20],
+      "radius":  46
+    }
+  },
+  "timing": {
+    "accel_dur":        1500,
+    "decel_dur":        1000,
+    "charge_dur_small":  200,
+    "charge_dur_big":    400,
+    "burst_dur":         400,
+    "ball_interval":     300,
+    "wave_pause_dur":    900
+  },
+  "scripts": {
+    "3": [
+      { "w": 100, "waves": [3],       "bigPos": "last_in_wave" }
+    ],
+    "4": [
+      { "w":  60, "waves": [2, 2],    "bigPos": "last_in_wave" },
+      { "w":  40, "waves": [4],       "bigPos": "last_in_wave" }
+    ],
+    "5": [
+      { "w":  50, "waves": [3, 2],    "bigPos": "last_of_all" },
+      { "w":  50, "waves": [2, 3],    "bigPos": "last_of_all" }
+    ],
+    "6": [
+      { "w":  60, "waves": [3, 3],    "bigPos": "last_of_all" },
+      { "w":  40, "waves": [2, 2, 2], "bigPos": "last_of_all" }
+    ],
+    "7": [
+      { "w":  60, "waves": [3, 2, 2], "bigPos": "last_of_all" },
+      { "w":  40, "waves": [2, 3, 2], "bigPos": "last_of_all" }
+    ],
+    "8": [
+      { "w":  60, "waves": [3, 3, 2], "bigPos": "last_of_all" },
+      { "w":  40, "waves": [2, 2, 4], "bigPos": "last_of_all" }
+    ]
+  }
+}

@@ -61,7 +61,35 @@ body{background:#000;overflow:hidden;width:100vw;height:100vh;display:flex;align
   cursor:pointer;pointer-events:all;
 }
 #winEl{display:none;font-size:clamp(13px,1.8vw,18px);font-weight:600;color:#44ccff;margin-left:8px;font-family:sans-serif;}
+/* ── 腳本測試面板 ── */
+#scriptPanel{
+  position:absolute;left:8px;top:8px;
+  background:#000000dd;border:1px solid #2a3a4a;border-radius:7px;
+  font-size:11px;font-family:monospace;color:#99aabb;
+  pointer-events:all;min-width:200px;max-height:82vh;
+  display:flex;flex-direction:column;z-index:20;
+}
+#scriptPanelHead{
+  padding:5px 10px;border-bottom:1px solid #2a3a4a;
+  display:flex;justify-content:space-between;align-items:center;
+  cursor:pointer;color:#7ab;user-select:none;
+}
+#scriptList{overflow-y:auto;flex:1;}
+.sp-group{padding:3px 10px;color:#446677;font-size:10px;border-top:1px solid #1a2a3a;margin-top:2px;}
+.sp-item{
+  padding:5px 10px;cursor:pointer;border-bottom:1px solid #111;
+  line-height:1.4;transition:background .1s;
+}
+.sp-item:hover{background:#1a2a3a;}
+.sp-item .sp-tag{
+  display:inline-block;font-size:9px;padding:1px 5px;border-radius:3px;
+  margin-left:4px;vertical-align:middle;
+}
+.sp-item .sp-custom{background:#2a1a0a;color:#ffa044;border:1px solid #553311;}
+.sp-item .sp-last-all{background:#0a1a2a;color:#44aaff;border:1px solid #113355;}
+.sp-item .sp-last-wave{background:#0a2a1a;color:#44dd88;border:1px solid #115533;}
 </style>
+<script src="dragon_performance.js"></script>
 </head>
 <body>
 <div id="wrap">
@@ -73,6 +101,15 @@ body{background:#000;overflow:hidden;width:100vw;height:100vh;display:flex;align
 
   <!-- ③ HUD 層 -->
   <div id="hud">
+    <!-- ── 腳本測試面板（左上角）── -->
+    <div id="scriptPanel">
+      <div id="scriptPanelHead" onclick="toggleScriptPanel()">
+        <span>🎮 腳本測試</span>
+        <span id="scriptPanelIcon">▾</span>
+      </div>
+      <div id="scriptList"></div>
+    </div>
+
     <div id="statusEl"></div>
     <div id="mulEl"></div>
 
@@ -128,6 +165,11 @@ body{background:#000;overflow:hidden;width:100vw;height:100vh;display:flex;align
         </svg>
       </div>
     </div>
+    <!-- ── 作弊按鈕（錄影用）── -->
+    <div style="position:absolute;right:clamp(6px,1.2%,14px);bottom:clamp(52px,9%,72px);display:flex;flex-direction:column;align-items:flex-end;gap:5px;pointer-events:all;">
+      <button onclick="startCheat(1)" style="background:#11111199;border:1px solid #445566;color:#99aabb;font-size:11px;padding:4px 10px;border-radius:5px;cursor:pointer;font-family:sans-serif;letter-spacing:.03em;">🎬 小獎 ≤4顆</button>
+      <button onclick="startCheat(2)" style="background:#00112299;border:1px solid #0066cc;color:#66bbff;font-size:11px;padding:4px 10px;border-radius:5px;cursor:pointer;font-family:sans-serif;letter-spacing:.03em;">⚡ 大獎 ≥5顆</button>
+    </div>
   </div><!-- /hud -->
 </div><!-- /wrap -->
 
@@ -150,12 +192,16 @@ const COIN_FPS = 15, COIN_TOTAL = 15;
 // 狀態
 // ═══════════════════════════════════════════════════
 let shots = 0, busy = false, bet = 999, rafId = null;
+let _cheatReady = false; // startCheat 已預設序列，buildBallSequence 應跳過
 let curTx = 602, curTy = 115, curAng = 0;
 let allCoins = [], scale = 1;
 let canvas, ctx, wrap;
 
 // ── Phase 狀態 ──
 let phase = 'idle'; // idle | shake | spin | done
+let isJackpot   = false; // 本局球數 > 4 時為 true
+let hasBigFired = false; // 本局是否已噴出過大球（觸發轉速加速）
+let bigFireT    = -1;   // 最近一次噴大球的時間戳（-1=未觸發），控制閃電持續時間
 
 // ── Phase 1：晃動 ──
 const SHAKE_DUR = 1500;       // 晃動持續時間 ms
@@ -169,26 +215,31 @@ let   spinSpd    = 0;
 let   spinStartT = 0;
 let   ringAngle  = 0;         // 電光環目前角度（度）
 
-// ── Phase 3：丟球（數值規格）──────────────────────
-// 小球顆數 / 權重
-const SMALL_SHOTS   = [2, 3, 4, 5, 6];
-const SMALL_SHOTS_W = [45, 30, 15, 8, 2];
-// 小球倍率 / 權重
-const SMALL_MULS    = [20, 30, 50];
-const SMALL_MULS_W  = [50, 30, 20];
+// ── Phase 3：丟球（數值規格）── 由 dragon_performance.json 載入 ──
+// 小球
+let SMALL_SHOTS, SMALL_SHOTS_W, SMALL_MULS, SMALL_MULS_W;
+// 大球
+let BIG_SHOTS,   BIG_SHOTS_W,   BIG_MULS,   BIG_MULS_W;
+// 球半徑
+let SMALL_R = 28, BIG_R = 46;
 
-// 大球顆數 / 權重（0 = 不出現）
-const BIG_SHOTS     = [0, 1, 2, 3];
-const BIG_SHOTS_W   = [40, 35, 18, 7];
-// 大球倍率 / 權重
-const BIG_MULS      = [80, 100, 200, 500];
-const BIG_MULS_W    = [73, 17, 8, 2];
-// ──────────────────────────────────────────────────
+// ── 波次時間軸 ── 由 dragon_performance.json 載入 ──
+let ACT1_DUR, ACT3_DUR, CHARGE_DUR_SMALL, CHARGE_DUR_BIG, BURST_DUR, BALL_INTERVAL, WAVE_PAUSE_DUR;
 
-const BALL_INTERVAL = 500;    // 每顆球間隔 ms
-let   ballsFired    = 0;
-let   lastBallT     = 0;
-let   ballSequence  = [];     // 預先決定好的球序列 [{type,mul,r}, ...]
+// 腳本執行引擎狀態
+let ballsFired  = 0;
+let ballSequence = [];
+let execState   = 'idle';  // accel|charging|ball_interval|wave_pause|decel
+let execT       = 0;       // 目前狀態開始的時間戳
+let execWaves   = [];      // [[ball,...], ...] 波次結構
+let execWaveIdx = 0;       // 目前處理第幾波
+let execBallIdx = 0;       // 目前波次中第幾顆
+let chargeIsBig = false;   // 本次蓄力是否為大球
+let ringBurstT  = -1;      // 環形爆發特效開始時間（-1=未激活）
+let execScript  = null;    // 目前執行中的腳本（用於 custom_pauses 等覆寫）
+
+// ── 腳本資料：由 dragon_performance.json 載入 ──
+let SCRIPTS;
 
 // ── 閃電球陣列 ──
 // 每顆：{ sx,sy, x,y, tx,ty, r, mul, type, alpha, t0, arrived }
@@ -351,23 +402,348 @@ function wr(vals, weights){
   return vals[vals.length - 1];
 }
 
-// ── 每局開始旋轉前，預先決定所有球的種類＋倍率 ──
+// ── 8象限分散配置 ──────────────────────────────────
+// 角度從 East 開始順時針：E,SE,S,SW,W,NW,N,NE
+const SECTOR_MID  = [0, 45, 90, 135, 180, 225, 270, 315];
+const SECTOR_HALF = 22.5;  // 每象限半角寬（度）
+const BALL_MIN_DIST = 240; // 距龍中心最近距離（px）
+const BALL_MAX_DIST = 460; // 距龍中心最遠距離（px）
+const BALL_MIN_SEP  = 105; // 球與球最小中心間距（px）
+
+// 建立平衡象限順序（round-robin 後整體洗牌）
+function buildSectorOrder(n){
+  const base = Array.from({length: n}, (_, i) => i % 8);
+  for(let i = base.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [base[i], base[j]] = [base[j], base[i]];
+  }
+  return base;
+}
+
+// 在指定象限內選一個不重疊的位置
+function pickBallPos(drCX, drCY, sectorIdx, placed){
+  const mid    = SECTOR_MID[sectorIdx] * Math.PI / 180;
+  const half   = SECTOR_HALF * Math.PI / 180;
+  const margin = 80;
+
+  for(let t = 0; t < 50; t++){
+    const angle = mid + (Math.random() * 2 - 1) * half;
+    const dist  = BALL_MIN_DIST + Math.random() * (BALL_MAX_DIST - BALL_MIN_DIST);
+    const tx = Math.max(margin, Math.min(BASE_W - margin, drCX + Math.cos(angle) * dist));
+    const ty = Math.max(margin, Math.min(BASE_H - margin, drCY + Math.sin(angle) * dist));
+
+    if(Math.hypot(tx - drCX, ty - drCY) < 180) continue;
+
+    let ok = true;
+    for(const p of placed){
+      if(Math.hypot(tx - p.tx, ty - p.ty) < BALL_MIN_SEP){ ok = false; break; }
+    }
+    if(ok) return { tx, ty };
+  }
+  // fallback：強制放象限中心方向
+  const dist = (BALL_MIN_DIST + BALL_MAX_DIST) / 2;
+  return {
+    tx: Math.max(margin, Math.min(BASE_W - margin, drCX + Math.cos(mid) * dist)),
+    ty: Math.max(margin, Math.min(BASE_H - margin, drCY + Math.sin(mid) * dist))
+  };
+}
+
+// ── 腳本選擇 ──
+function pickScript(total, bigCount){
+  const t    = Math.max(3, Math.min(8, total));
+  const opts = SCRIPTS[t].filter(s => s.req_big === undefined || s.req_big === bigCount);
+  if(opts.length === 0) return SCRIPTS[t][0]; // 安全後備
+  return wr(opts, opts.map(s => s.w));
+}
+
+// ── 依腳本將小球/大球分配進波次 ──
+function distributeBalls(smalls, bigs, script){
+  const shuf = arr => {
+    const a = [...arr];
+    for(let i = a.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+  const sm = shuf(smalls), bg = shuf(bigs);
+  const waveSizes = script.waves;
+  const result = [];
+
+  if(script.bigPos === 'custom'){
+    // 企劃指定大球落在展平序列的哪幾個索引
+    const bigSet = new Set(script.custom_big_idx || []);
+    const total  = waveSizes.reduce((a, b) => a + b, 0);
+    let si = 0, bi = 0;
+    const flat = [];
+    for(let i = 0; i < total; i++){
+      if(bigSet.has(i) && bi < bg.length) flat.push(bg[bi++]);
+      else if(si < sm.length)             flat.push(sm[si++]);
+      else if(bi < bg.length)             flat.push(bg[bi++]); // 補漏
+    }
+    let ptr = 0;
+    waveSizes.forEach(size => { result.push(flat.slice(ptr, ptr + size)); ptr += size; });
+
+  } else if(script.bigPos === 'last_of_all'){
+    // 小球依序填滿前面各波，大球全部壓在最後一波末尾
+    let sp = 0;
+    waveSizes.forEach((size, wi) => {
+      const wave = [];
+      const isLast = wi === waveSizes.length - 1;
+      const smallN = isLast ? Math.max(0, size - bg.length) : size;
+      for(let i = 0; i < smallN && sp < sm.length; i++) wave.push(sm[sp++]);
+      if(isLast) bg.forEach(b => wave.push(b));
+      result.push(wave);
+    });
+
+  } else {
+    // last_in_wave：大球分給最後 N 波，每波各一顆，壓在該波末尾
+    let sp = 0, bp = 0;
+    waveSizes.forEach((size, wi) => {
+      const wave = [];
+      const takeBig = bp < bg.length && wi >= waveSizes.length - bg.length;
+      const smallN  = takeBig ? size - 1 : size;
+      for(let i = 0; i < smallN && sp < sm.length; i++) wave.push(sm[sp++]);
+      if(takeBig) wave.push(bg[bp++]);
+      result.push(wave);
+    });
+    while(bp < bg.length){
+      if(result.length === 0) result.push([]);
+      result[result.length - 1].push(bg[bp++]);
+    }
+  }
+
+  return result.filter(w => w.length > 0);
+}
+
+// ── 每局開始旋轉前，預先決定所有球的種類、倍率、位置 ──
 function buildBallSequence(){
-  ballSequence = [];
+  if(_cheatReady){ _cheatReady = false; return; }
+
   const smallCount = wr(SMALL_SHOTS, SMALL_SHOTS_W);
   const bigCount   = wr(BIG_SHOTS,   BIG_SHOTS_W);
+  const smalls = Array.from({length: smallCount}, () => ({ type:'small', mul: wr(SMALL_MULS, SMALL_MULS_W), r: SMALL_R }));
+  const bigs   = Array.from({length: bigCount},   () => ({ type:'big',   mul: wr(BIG_MULS,   BIG_MULS_W),   r: BIG_R   }));
 
-  for(let i = 0; i < smallCount; i++){
-    ballSequence.push({ type: 'small', mul: wr(SMALL_MULS, SMALL_MULS_W), r: 28 });
+  const script = pickScript(smallCount + bigCount, bigCount);
+  execScript   = script;
+  execWaves    = distributeBalls(smalls, bigs, script);
+  ballSequence = execWaves.flat();
+  isJackpot    = ballSequence.length > 4;
+  applySequencePositions();
+}
+
+// ── 象限落點分配（buildBallSequence / startCheat 共用）──
+function applySequencePositions(){
+  const drCX = DCX + curTx, drCY = DCY + curTy;
+  const sectors = buildSectorOrder(ballSequence.length);
+  const placed  = [];
+  ballSequence.forEach((b, i) => {
+    const pos = pickBallPos(drCX, drCY, sectors[i], placed);
+    b.tx = pos.tx; b.ty = pos.ty;
+    placed.push(pos);
+  });
+}
+
+// ── 作弊：強制指定表演內容並立即開始 ──
+function startCheat(mode){
+  resetGame();
+  let smalls, bigs;
+  if(mode === 1){
+    smalls = [20, 30, 40].map(mul => ({ type:'small', mul, r: SMALL_R }));
+    bigs   = [];
+  } else {
+    smalls = [20, 30, 40].map(mul  => ({ type:'small', mul, r: SMALL_R }));
+    bigs   = [60, 80, 100].map(mul => ({ type:'big',   mul, r: BIG_R   }));
   }
-  for(let i = 0; i < bigCount; i++){
-    ballSequence.push({ type: 'big',   mul: wr(BIG_MULS,   BIG_MULS_W),   r: 46 });
+  const script = pickScript(smalls.length + bigs.length, bigs.length);
+  execScript   = script;
+  execWaves    = distributeBalls(smalls, bigs, script);
+  ballSequence = execWaves.flat();
+  isJackpot    = ballSequence.length > 4;
+  applySequencePositions();
+  _cheatReady = true;
+  busy = true; shots = 3;
+  phase = 'shake'; shakeStartT = Date.now();
+  ballsFired = 0; eBalls = []; spinSpd = 0; curAng = 0;
+  document.getElementById('abtn').style.opacity = '.35';
+  setSt('命中！');
+}
+
+// ═══════════════════════════════════════════════════
+// 腳本測試面板
+// ═══════════════════════════════════════════════════
+
+// 每個總球數對應的 [小球數, 大球數]（用於測試時固定分配）
+const CHEAT_SPLITS = { 3:[2,1], 4:[3,1], 5:[3,2], 6:[3,3], 7:[4,3], 8:[5,3] };
+
+function buildScriptPanel(){
+  const list = document.getElementById('scriptList');
+  if(!list) return;
+  list.innerHTML = '';
+
+  Object.entries(DRAGON_PERF.scripts).forEach(([totalStr, scripts]) => {
+    const total = parseInt(totalStr);
+
+    // 球數標題列
+    const group = document.createElement('div');
+    group.className = 'sp-group';
+    group.textContent = `── ${total} 顆球 ──`;
+    list.appendChild(group);
+
+    scripts.forEach((script, idx) => {
+      const item = document.createElement('div');
+      item.className = 'sp-item';
+
+      // 主要資訊
+      const wavesStr = '[' + script.waves.join(', ') + ']';
+      const wStr = `w:${script.w}`;
+
+      // bigPos 標籤
+      let tagHtml = '';
+      if(script.bigPos === 'custom'){
+        tagHtml = `<span class="sp-tag sp-custom">自訂</span>`;
+      } else if(script.bigPos === 'last_of_all'){
+        tagHtml = `<span class="sp-tag sp-last-all">末波大球</span>`;
+      } else {
+        tagHtml = `<span class="sp-tag sp-last-wave">各波大球</span>`;
+      }
+
+      // 額外說明
+      let extra = '';
+      if(script.custom_pauses){
+        extra += `<br><span style="color:#665533;font-size:10px;">⏱ 停頓 ${script.custom_pauses.map(p=>p+'ms').join(' → ')}</span>`;
+      }
+      if(script.custom_big_idx){
+        extra += `<br><span style="color:#553322;font-size:10px;">🎯 大球位置 [${script.custom_big_idx.join(', ')}]</span>`;
+      }
+
+      item.innerHTML = `<span style="color:#ccd;">${total}顆</span> <span style="color:#556;">${wStr}</span> <span style="color:#7ab;">${wavesStr}</span>${tagHtml}${extra}`;
+      item.onclick = () => startCheatWithScript(total, idx);
+      list.appendChild(item);
+    });
+  });
+}
+
+function startCheatWithScript(total, scriptIdx){
+  const script = DRAGON_PERF.scripts[total]?.[scriptIdx];
+  if(!script) return;
+  const [sc, bc] = CHEAT_SPLITS[total] || [Math.ceil(total/2), Math.floor(total/2)];
+  const smalls = Array.from({length: sc}, () => ({ type:'small', mul: wr(SMALL_MULS, SMALL_MULS_W), r: SMALL_R }));
+  const bigs   = Array.from({length: bc}, () => ({ type:'big',   mul: wr(BIG_MULS,   BIG_MULS_W),   r: BIG_R   }));
+  resetGame();
+  execScript   = script;
+  execWaves    = distributeBalls(smalls, bigs, script);
+  ballSequence = execWaves.flat();
+  isJackpot    = ballSequence.length > 4;
+  applySequencePositions();
+  _cheatReady = true;
+  busy = true; shots = 3;
+  phase = 'shake'; shakeStartT = Date.now();
+  ballsFired = 0; eBalls = []; spinSpd = 0; curAng = 0;
+  document.getElementById('abtn').style.opacity = '.35';
+  setSt('命中！');
+}
+
+function toggleScriptPanel(){
+  const list = document.getElementById('scriptList');
+  const icon = document.getElementById('scriptPanelIcon');
+  const collapsed = list.style.display === 'none';
+  list.style.display = collapsed ? '' : 'none';
+  icon.textContent  = collapsed ? '▾' : '▸';
+}
+
+// ═══════════════════════════════════════════════════
+// 大獎閃電特效
+// ═══════════════════════════════════════════════════
+
+// 中點置換法：遞迴生成鋸齒閃電路徑
+function makeLightningPath(x1, y1, x2, y2, depth, spread){
+  if(depth === 0) return [[x1,y1],[x2,y2]];
+  const mx = (x1+x2)/2 + (Math.random()-0.5)*spread;
+  const my = (y1+y2)/2 + (Math.random()-0.5)*spread;
+  const L = makeLightningPath(x1,y1,mx,my,depth-1,spread*0.55);
+  const R = makeLightningPath(mx,my,x2,y2,depth-1,spread*0.55);
+  return L.concat(R.slice(1));
+}
+
+// 畫一條閃電（含分支）
+function drawLightningBolt(x1,y1,x2,y2,depth,spread,alpha,width,color){
+  const pts = makeLightningPath(x1,y1,x2,y2,depth,spread);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha   = alpha;
+  ctx.strokeStyle   = color || '#88ddff';
+  ctx.lineWidth     = width || 2;
+  ctx.lineCap       = 'round';
+  ctx.lineJoin      = 'round';
+  ctx.shadowColor   = '#00aaff';
+  ctx.shadowBlur    = width * 7;
+  ctx.beginPath();
+  pts.forEach(([x,y],i) => i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y));
+  ctx.stroke();
+  // 隨機加一條分支
+  if(depth > 1 && pts.length > 4 && Math.random() < 0.55){
+    const bi  = Math.floor(pts.length * 0.25 + Math.random() * pts.length * 0.5);
+    const [bx,by] = pts[bi];
+    const ang = Math.atan2(y2-y1, x2-x1) + (Math.random()-0.5) * Math.PI * 0.9;
+    const bl  = 28 + Math.random() * 55;
+    drawLightningBolt(bx,by,bx+Math.cos(ang)*bl,by+Math.sin(ang)*bl,
+                      depth-1, spread*0.5, alpha*0.55, width*0.6, color);
   }
-  // 洗牌，讓大小球隨機交錯
-  for(let i = ballSequence.length - 1; i > 0; i--){
-    const j = Math.floor(Math.random() * (i + 1));
-    [ballSequence[i], ballSequence[j]] = [ballSequence[j], ballSequence[i]];
+  ctx.shadowBlur  = 0;
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// 大獎特效：從電光環外側炸出閃電 + 偶發畫面閃白
+function drawJackpotLightning(cx, cy){
+  if(phase !== 'spin' || bigFireT < 0 || Date.now() - bigFireT > BALL_FLY_DUR) return;
+  const rx = 210, ry = 78;
+  const BOLT_COUNT = 6;
+
+  for(let i = 0; i < BOLT_COUNT; i++){
+    if(Math.random() > 0.55) continue; // 每條各自決定這幀要不要亮
+    const baseAngle = (ringAngle + i * (360 / BOLT_COUNT)) * Math.PI / 180;
+    const sx = cx + Math.cos(baseAngle) * rx;
+    const sy = cy + Math.sin(baseAngle) * ry;
+    const len = 75 + Math.random() * 140;
+    const scatter = (Math.random() - 0.5) * 0.45;
+    const ex = sx + Math.cos(baseAngle + scatter) * len;
+    const ey = sy + Math.sin(baseAngle + scatter) * len;
+    const a  = 0.28 + Math.random() * 0.5;
+    const w  = 1.6 + (i % 2) * 1.0;
+    drawLightningBolt(sx, sy, ex, ey, 3, 24, a, w, '#99eeff');
   }
+
+  // 2.5% 機率觸發全畫面藍白閃光
+  if(Math.random() < 0.025){
+    ctx.save();
+    ctx.globalAlpha = 0.06 + Math.random() * 0.09;
+    ctx.fillStyle   = '#aaddff';
+    ctx.fillRect(0, 0, BASE_W, BASE_H);
+    ctx.restore();
+  }
+}
+
+// 出球瞬間的環形衝擊波
+function drawRingBurst(cx, cy){
+  if(ringBurstT < 0) return;
+  const elapsed = Date.now() - ringBurstT;
+  if(elapsed > BURST_DUR){ ringBurstT = -1; return; }
+  const t = elapsed / BURST_DUR;
+  const r = 30 + t * 130;
+  ctx.save();
+  ctx.globalAlpha = (1 - t) * 0.75;
+  ctx.strokeStyle = '#88ddff';
+  ctx.lineWidth   = 3.5 - t * 3;
+  ctx.shadowColor = '#00aaff';
+  ctx.shadowBlur  = 18;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowBlur  = 0;
+  ctx.restore();
 }
 
 // ═══════════════════════════════════════════════════
@@ -482,25 +858,13 @@ function drawBalls(){
 // ═══════════════════════════════════════════════════
 const BALL_FLY_DUR = 700;
 
-function randBallTarget(){
-  const drCX = DCX + curTx, drCY = DCY + curTy;
-  let tx, ty, tries = 0;
-  do {
-    tx = 120 + Math.random() * (BASE_W - 240);
-    ty =  80 + Math.random() * (BASE_H - 180);
-    tries++;
-  } while(tries < 30 && Math.hypot(tx - drCX, ty - drCY) < 220);
-  return { tx, ty };
-}
-
-function spawnBall(){
-  const def = ballSequence[ballsFired];   // 從預先決定的序列取
-  if(!def) return;
+function spawnBall(ball){
+  if(ball.type === 'big'){ hasBigFired = true; bigFireT = Date.now(); }
   const cx = DCX + curTx, cy = DCY + curTy;
-  const { tx, ty } = randBallTarget();
   eBalls.push({
-    sx: cx, sy: cy, x: cx, y: cy, tx, ty,
-    r: def.r, type: def.type, mul: def.mul,
+    sx: cx, sy: cy, x: cx, y: cy,
+    tx: ball.tx, ty: ball.ty,
+    r: ball.r, type: ball.type, mul: ball.mul,
     alpha: 1, t0: Date.now(), arrived: false,
   });
 }
@@ -517,28 +881,89 @@ function updatePhase(now){
       curTx = 602;
       phase = 'spin';
       spinStartT = now;
-      lastBallT  = now;
       ringAngle  = 0;
-      buildBallSequence();   // ← 旋轉開始時決定這局的球
+      buildBallSequence();
+      execState   = 'accel';
+      execT       = now;
+      execWaveIdx = 0;
+      execBallIdx = 0;
       setSt('');
     }
   }
 
   if(phase === 'spin'){
-    const accelT = Math.min((now - spinStartT) / SPIN_ACCEL_DUR, 1);
-    spinSpd   = SPIN_MAX_SPD * accelT;
-    ringAngle += spinSpd;
+    const topSpd = hasBigFired ? 45 : SPIN_MAX_SPD;
 
-    if(now - lastBallT >= BALL_INTERVAL && ballsFired < ballSequence.length){
-      spawnBall();
-      ballsFired++;
-      lastBallT = now;
+    if(execState === 'accel'){
+      const t = Math.min((now - execT) / ACT1_DUR, 1);
+      spinSpd = topSpd * t;
+      ringAngle += spinSpd;
+      if(t >= 1){
+        execState   = 'charging';
+        execT       = now;
+        execWaveIdx = 0;
+        execBallIdx = 0;
+        chargeIsBig = (execWaves[0]?.[0]?.type === 'big');
+      }
     }
-
-    if(ballsFired >= ballSequence.length && ballSequence.length > 0 && now - lastBallT > 800){
-      phase = 'done';
-      busy  = false;
-      document.getElementById('abtn').style.opacity = '1';
+    else if(execState === 'charging'){
+      spinSpd = topSpd;
+      ringAngle += spinSpd;
+      const dur = chargeIsBig ? CHARGE_DUR_BIG : CHARGE_DUR_SMALL;
+      const cp  = Math.min((now - execT) / dur, 1);
+      // 蓄力動畫：龍的縮放先縮後放
+      window._dragonScale = 0.72 - 0.10 * Math.sin(cp * Math.PI);
+      if(cp >= 1){
+        window._dragonScale = 0.72;
+        spawnBall(execWaves[execWaveIdx][execBallIdx]);
+        ballsFired++;
+        ringBurstT = now;
+        const wave = execWaves[execWaveIdx];
+        if(execBallIdx < wave.length - 1){
+          execBallIdx++;
+          execState = 'ball_interval';
+          execT = now;
+        } else if(execWaveIdx < execWaves.length - 1){
+          execWaveIdx++;
+          execBallIdx = 0;
+          execState = 'wave_pause';
+          execT = now;
+        } else {
+          execState = 'decel';
+          execT = now;
+        }
+      }
+    }
+    else if(execState === 'ball_interval'){
+      spinSpd = topSpd;
+      ringAngle += spinSpd;
+      if(now - execT >= BALL_INTERVAL){
+        chargeIsBig = (execWaves[execWaveIdx][execBallIdx].type === 'big');
+        execState = 'charging';
+        execT = now;
+      }
+    }
+    else if(execState === 'wave_pause'){
+      spinSpd = topSpd * 0.5;
+      ringAngle += spinSpd;
+      // custom_pauses[i] 對應「第 i 波結束後」的停頓；execWaveIdx 已指向下一波
+      const pauseDur = execScript?.custom_pauses?.[execWaveIdx - 1] ?? WAVE_PAUSE_DUR;
+      if(now - execT >= pauseDur){
+        chargeIsBig = (execWaves[execWaveIdx]?.[0]?.type === 'big');
+        execBallIdx = 0;
+        execState = 'charging';
+        execT = now;
+      }
+    }
+    else if(execState === 'decel'){
+      const t = Math.min((now - execT) / ACT3_DUR, 1);
+      spinSpd = topSpd * (1 - t);
+      ringAngle += spinSpd;
+      if(t >= 1){
+        phase = 'done';
+        busy  = false;
+        document.getElementById('abtn').style.opacity = '1';
+      }
     }
   }
 
@@ -605,10 +1030,16 @@ function render(){
     }
   }
 
-  // ④ 電光環前段（壓在龍上方）
+  // ④ 大獎閃電（壓在龍上、環前段下）
+  drawJackpotLightning(cx, cy);
+
+  // ④.5 出球衝擊波
+  drawRingBurst(cx, cy);
+
+  // ⑤ 電光環前段（壓在龍上方）
   if(spinning) drawRingArcs(cx, cy, 0, Math.PI, 0.85, 4.5);
 
-  // ⑤ 場上電球
+  // ⑥ 場上電球
   drawBalls();
 
   requestAnimationFrame(render);
@@ -691,7 +1122,8 @@ function resetGame(){
   currentDragonIdx = 0;
   window._dragonScale = 0.72;
   allCoins = []; eBalls = [];
-  phase = 'idle'; spinSpd = 0; ballsFired = 0; ringAngle = 0; ballSequence = [];
+  phase = 'idle'; spinSpd = 0; ballsFired = 0; ringAngle = 0; ballSequence = []; isJackpot = false; _cheatReady = false;
+  execState = 'idle'; execT = 0; execWaves = []; execWaveIdx = 0; execBallIdx = 0; chargeIsBig = false; ringBurstT = -1; execScript = null; hasBigFired = false; bigFireT = -1;
   document.getElementById('abtn').style.opacity = '1';
   document.getElementById('mulEl').style.opacity = '0';
   document.getElementById('winEl').style.display = 'none';
@@ -713,6 +1145,28 @@ window.addEventListener('DOMContentLoaded', () => {
   loadSpinDragon();
   loadCoins();
   loadPrize();
+
+  // 從 dragon_performance.js 載入的 DRAGON_PERF 全域變數套入
+  const cfg = DRAGON_PERF;
+  SMALL_SHOTS   = cfg.balls.small.shots;
+  SMALL_SHOTS_W = cfg.balls.small.shots_w;
+  SMALL_MULS    = cfg.balls.small.muls;
+  SMALL_MULS_W  = cfg.balls.small.muls_w;
+  SMALL_R       = cfg.balls.small.radius;
+  BIG_SHOTS     = cfg.balls.big.shots;
+  BIG_SHOTS_W   = cfg.balls.big.shots_w;
+  BIG_MULS      = cfg.balls.big.muls;
+  BIG_MULS_W    = cfg.balls.big.muls_w;
+  BIG_R         = cfg.balls.big.radius;
+  ACT1_DUR         = cfg.timing.accel_dur;
+  ACT3_DUR         = cfg.timing.decel_dur;
+  CHARGE_DUR_SMALL = cfg.timing.charge_dur_small;
+  CHARGE_DUR_BIG   = cfg.timing.charge_dur_big;
+  BURST_DUR        = cfg.timing.burst_dur;
+  BALL_INTERVAL    = cfg.timing.ball_interval;
+  WAVE_PAUSE_DUR   = cfg.timing.wave_pause_dur;
+  SCRIPTS          = cfg.scripts;
+  buildScriptPanel();
   requestAnimationFrame(render);
 });
 </script>
