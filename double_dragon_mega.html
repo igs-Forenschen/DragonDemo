@@ -321,11 +321,12 @@ let m_shakeT       = -1;
 let m_shrinkT      = -1;
 let m_cannonT      = -1;
 let m_fireIdx      = 0,  m_fireT       = -1;
-let m_gasWave      = 0,  m_gasIdx      = 0, m_gasT = -1;
+let m_gasT = -1;
 let m_gasWavePauseT = -1;
 let m_gasChargeT    = -1;   // 集氣開始時間
+let m_gasQueue      = [];   // 輪轉打擊佇列 [{idx, si}, ...]
+let m_gasQueueIdx   = 0;    // 目前發射到第幾個
 let m_lastLandT    = -1;
-let m_maxGasWaves  = 0;
 let m_dragonScale  = 1;
 let m_cannonScale  = 0;
 let m_fireBalls    = [];
@@ -604,26 +605,22 @@ function buildBallsMega() {
     });
     placed.push(pos);
   }
-  m_maxGasWaves = 0;
-  m_fireBalls.forEach(fb => {
-    if (fb.stages.length > m_maxGasWaves) m_maxGasWaves = fb.stages.length;
-  });
+  // 建立輪轉打擊佇列：每輪每顆球各打一次，高倍球自然橫跨多輪
+  m_gasQueue = buildGasHitQueue();
+  m_gasQueueIdx = 0;
 }
 
-function startGasWave(wave) {
-  m_gasBallsActive = [];
-  m_fireBalls.forEach((fb, idx) => {
-    if (!fb.arrived) return;
-    if (fb.stages.length > wave) {
-      m_gasBallsActive.push({
-        sx: M_GAS_X, sy: M_GAS_Y, x: M_GAS_X, y: M_GAS_Y,
-        tx: fb.tx, ty: fb.ty,
-        targetIdx: idx, wave,
-        r: M_GAS_R, alpha: 1, t0: -1, arrived: false
-      });
-    }
-  });
-  m_gasIdx = 0; m_gasT = Date.now();
+// 輪轉佇列：stage 0 的所有球 → stage 1 的所有球 → ...
+// 低倍球先結束，高倍球反覆被打，張力遞升
+function buildGasHitQueue() {
+  const q = [];
+  const maxS = m_fireBalls.reduce((m, fb) => Math.max(m, fb.stages.length), 0);
+  for (let si = 0; si < maxS; si++) {
+    m_fireBalls.forEach((fb, idx) => {
+      if (fb.stages.length > si) q.push({ idx, si });
+    });
+  }
+  return q;
 }
 
 function applyStage(idx, wave, now) {
@@ -698,7 +695,6 @@ function updatePhaseMega(now) {
     if (m_fireBalls.every(b => b.arrived)) {
       if (m_lastLandT < 0) m_lastLandT = now;
       if (now - m_lastLandT >= FIRE_WAIT_PAD) {
-        m_gasWave = 0;
         // 先集氣，再吐乘倍球
         phase = 'gas_charge'; m_gasChargeT = now; setSt('集氣中...');
       }
@@ -707,35 +703,36 @@ function updatePhaseMega(now) {
 
   if (phase === 'gas_charge') {
     if (now - m_gasChargeT >= GAS_CHARGE_DUR) {
-      startGasWave(m_gasWave);
+      // 集氣完成：初始化連發佇列（只有這一次集氣）
+      m_gasBallsActive = [];
+      m_gasQueueIdx    = 0;
+      m_gasT           = now - GAS_INTERVAL;  // 讓第一顆立即發射
       phase = 'gassing'; setSt('');
     }
   }
 
   if (phase === 'gassing') {
-    if (m_gasIdx < m_gasBallsActive.length) {
+    // 佇列還有未發射的：每隔 GAS_INTERVAL 發一顆
+    if (m_gasQueueIdx < m_gasQueue.length) {
       if (now - m_gasT >= GAS_INTERVAL) {
-        m_gasBallsActive[m_gasIdx].t0 = now;
-        m_muzzleFlashes.push({ x: M_GAS_X, y: M_GAS_Y, t0: now, col: '60,255,110' });
-        m_gasIdx++; m_gasT = now;
+        const hit = m_gasQueue[m_gasQueueIdx];
+        const fb  = m_fireBalls[hit.idx];
+        if (fb && fb.arrived) {
+          m_gasBallsActive.push({
+            sx: M_GAS_X, sy: M_GAS_Y, x: M_GAS_X, y: M_GAS_Y,
+            tx: fb.tx, ty: fb.ty,
+            targetIdx: hit.idx, wave: hit.si,
+            r: M_GAS_R, alpha: 1, t0: now, arrived: false
+          });
+          m_muzzleFlashes.push({ x: M_GAS_X, y: M_GAS_Y, t0: now, col: '60,255,110' });
+        }
+        m_gasQueueIdx++; m_gasT = now;
       }
     } else {
+      // 全部發射完，等最後幾顆飛到目標
       if (m_gasBallsActive.every(g => g.arrived)) {
-        const more = m_fireBalls.some(fb => fb.stages.length > m_gasWave + 1);
-        if (more) {
-          phase = 'gas_wave_pause'; m_gasWavePauseT = now; setSt('還有更多...');
-        } else {
-          phase = 'gas_settle'; m_gasWavePauseT = now; setSt('');
-        }
+        phase = 'gas_settle'; m_gasWavePauseT = now; setSt('');
       }
-    }
-  }
-
-  if (phase === 'gas_wave_pause') {
-    if (now - m_gasWavePauseT >= GAS_WAVE_PAUSE) {
-      m_gasWave++;
-      // 第二波前也先集氣
-      phase = 'gas_charge'; m_gasChargeT = now; setSt('還有更多...');
     }
   }
 
@@ -1535,8 +1532,9 @@ function resetGame() {
   // MEGA
   m_fireBalls=[]; m_gasBallsActive=[]; m_muzzleFlashes=[]; m_popOverlays=[];
   m_shakeT=-1; m_shrinkT=-1; m_cannonT=-1;
-  m_fireIdx=0; m_fireT=-1; m_gasWave=0; m_gasIdx=0; m_gasT=-1;
-  m_gasWavePauseT=-1; m_gasChargeT=-1; m_lastLandT=-1; m_maxGasWaves=0;
+  m_fireIdx=0; m_fireT=-1; m_gasT=-1;
+  m_gasQueue=[]; m_gasQueueIdx=0;
+  m_gasWavePauseT=-1; m_gasChargeT=-1; m_lastLandT=-1;
   m_allExplodeT=-1; m_prizeLabels=false;
   m_collectVisible=false; m_collectT=-1; m_collectTarget=0; m_collectShards=[];
   m_dragonScale=1; m_cannonScale=0;
