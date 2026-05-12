@@ -511,6 +511,9 @@ function switchMode(m) {
 function buildBallsNormal() {
   n_fireBalls = [];
   n_gasBalls  = [];
+  n_popOverlays  = [];
+  n_allExplodeT  = -1;
+  n_hideLabels   = false;
   const placed = [];
   const n = wr(N_CNT_VALS, N_CNT_WTS);
   for (let i = 0; i < n; i++) {
