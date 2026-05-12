@@ -302,10 +302,10 @@ const COIN_FPS = 15, COIN_TOTAL = 15;
 
 // ── 一般模式：龍嘴位置 (22/23.png 置中 596×418) ──
 // 圖片繪製於 dx=502, dy=91；★ 用校準面板即時調整，或在此直接改數字
-let N_FIRE_L_X = 590,  N_FIRE_L_Y = 267;   // 左頭火球
+let N_FIRE_L_X = 603,  N_FIRE_L_Y = 252;   // 左頭火球
 let N_FIRE_R_X = 1009, N_FIRE_R_Y = 267;   // 右頭火球
 let N_GAS_L_X  = 590,  N_GAS_L_Y  = 267;   // 左頭毒氣
-let N_GAS_R_X  = 1009, N_GAS_R_Y  = 267;   // 右頭毒氣
+let N_GAS_R_X  = 748,  N_GAS_R_Y  = 178;   // 右頭毒氣
 
 // ── MEGA 模式：砲臺 (24.png = 768×325) ──
 const CANNON_W   = 768, CANNON_H = 325;
@@ -523,6 +523,7 @@ function buildBallsNormal() {
       tx: pos.tx, ty: pos.ty,
       r: N_FIRE_R, baseVal: mul, dblVal: dbl, finalVal: mul * dbl,
       alpha: 1, t0: -1, arrived: false,
+      gasHit: false,
       exploded: false, explodeT: -1, popT: -1
     });
     placed.push(pos);
@@ -658,7 +659,12 @@ function updatePhaseNormal(now) {
     g.y = g.sy + (g.ty - g.sy) * et;
     if (t >= 1) {
       g.arrived = true; g.x = g.tx; g.y = g.ty;
-      // 不在此觸發爆炸，統一在 gas_wait 全到位後 500ms 同時引爆
+      const fb = n_fireBalls[g.targetIdx];
+      if (fb && !fb.gasHit) {
+        fb.gasHit = true;   // 切換顯示為 finalVal
+        fb.popT   = now;    // 觸發彈跳動畫
+      }
+      // 爆炸統一在 gas_wait 全到位後 500ms 引爆
     }
   });
 }
@@ -1020,12 +1026,14 @@ function drawFireBallsNormal(now) {
     ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
 
     if (fb.arrived && !n_hideLabels) {
-      const val = fb.exploded ? fb.finalVal : fb.baseVal;
-      const fs  = Math.round(r * (fb.exploded ? 0.70 : 0.62));
+      // gasHit（毒氣命中）或 exploded（爆炸後）都顯示 finalVal
+      const hit = fb.gasHit || fb.exploded;
+      const val = hit ? fb.finalVal : fb.baseVal;
+      const fs  = Math.round(r * (hit ? 0.70 : 0.62));
       ctx.font         = `700 ${fs}px sans-serif`;
       ctx.textAlign    = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle    = fb.exploded ? '#ffee00' : '#ffddbb';
-      ctx.shadowColor  = fb.exploded ? '#ff6600' : '#880000';
+      ctx.fillStyle    = hit ? '#ffee00' : '#ffddbb';
+      ctx.shadowColor  = hit ? '#ff6600' : '#880000';
       ctx.shadowBlur   = 5;
       ctx.fillText(val + 'x', fb.x, fb.y + 1);
       ctx.shadowBlur   = 0;
