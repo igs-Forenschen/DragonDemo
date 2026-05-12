@@ -226,10 +226,15 @@ let SMALL_R = 28, BIG_R = 46;
 // ── 波次時間軸 ── 由 dragon_performance.json 載入 ──
 let ACT1_DUR, ACT3_DUR, CHARGE_DUR_SMALL, CHARGE_DUR_BIG, BURST_DUR, BALL_INTERVAL, WAVE_PAUSE_DUR;
 
+// ── 連鎖閃電常數 ──
+const CHAIN_FLY_DUR  = 380;  // 連鎖球飛行時間（比一般短）
+const CHAIN_INTERVAL = 160;  // 連鎖球之間的間隔 ms
+const CHAIN_ARC_DUR  = 700;  // 落地後閃電弧維持時間 ms
+
 // 腳本執行引擎狀態
 let ballsFired  = 0;
 let ballSequence = [];
-let execState   = 'idle';  // accel|charging|ball_interval|wave_pause|decel
+let execState   = 'idle';  // accel|charging|chain_interval|ball_interval|wave_pause|decel
 let execT       = 0;       // 目前狀態開始的時間戳
 let execWaves   = [];      // [[ball,...], ...] 波次結構
 let execWaveIdx = 0;       // 目前處理第幾波
@@ -237,6 +242,7 @@ let execBallIdx = 0;       // 目前波次中第幾顆
 let chargeIsBig = false;   // 本次蓄力是否為大球
 let ringBurstT  = -1;      // 環形爆發特效開始時間（-1=未激活）
 let execScript  = null;    // 目前執行中的腳本（用於 custom_pauses 等覆寫）
+let chainBallSrc = null;   // 上一顆球的落點 {x,y}，供下一顆連鎖球使用
 
 // ── 腳本資料：由 dragon_performance.json 載入 ──
 let SCRIPTS;
@@ -574,9 +580,6 @@ function startCheat(mode){
 // 腳本測試面板
 // ═══════════════════════════════════════════════════
 
-// 每個總球數對應的 [小球數, 大球數]（用於測試時固定分配）
-const CHEAT_SPLITS = { 3:[2,1], 4:[3,1], 5:[3,2], 6:[3,3], 7:[4,3], 8:[5,3] };
-
 function buildScriptPanel(){
   const list = document.getElementById('scriptList');
   if(!list) return;
@@ -584,22 +587,27 @@ function buildScriptPanel(){
 
   Object.entries(DRAGON_PERF.scripts).forEach(([totalStr, scripts]) => {
     const total = parseInt(totalStr);
-
-    // 球數標題列
-    const group = document.createElement('div');
-    group.className = 'sp-group';
-    group.textContent = `── ${total} 顆球 ──`;
-    list.appendChild(group);
+    let lastBigCount = null;
 
     scripts.forEach((script, idx) => {
+      // 從 req_big 推算這個腳本的小/大球數量
+      const bc = script.req_big !== undefined ? script.req_big : total - 2;
+      const sc = total - bc;
+
+      // 當 req_big 換組時，插入分組標題
+      if(bc !== lastBigCount){
+        lastBigCount = bc;
+        const group = document.createElement('div');
+        group.className = 'sp-group';
+        group.textContent = `── ${total}顆球（${sc}小 ${bc}大）──`;
+        list.appendChild(group);
+      }
+
       const item = document.createElement('div');
       item.className = 'sp-item';
 
-      // 主要資訊
       const wavesStr = '[' + script.waves.join(', ') + ']';
-      const wStr = `w:${script.w}`;
 
-      // bigPos 標籤
       let tagHtml = '';
       if(script.bigPos === 'custom'){
         tagHtml = `<span class="sp-tag sp-custom">自訂</span>`;
@@ -609,16 +617,15 @@ function buildScriptPanel(){
         tagHtml = `<span class="sp-tag sp-last-wave">各波大球</span>`;
       }
 
-      // 額外說明
       let extra = '';
       if(script.custom_pauses){
-        extra += `<br><span style="color:#665533;font-size:10px;">⏱ 停頓 ${script.custom_pauses.map(p=>p+'ms').join(' → ')}</span>`;
+        extra += `<br><span style="color:#665533;font-size:10px;">⏱ ${script.custom_pauses.map(p=>p+'ms').join(' → ')}</span>`;
       }
       if(script.custom_big_idx){
-        extra += `<br><span style="color:#553322;font-size:10px;">🎯 大球位置 [${script.custom_big_idx.join(', ')}]</span>`;
+        extra += `<br><span style="color:#553322;font-size:10px;">🎯 [${script.custom_big_idx.join(', ')}]</span>`;
       }
 
-      item.innerHTML = `<span style="color:#ccd;">${total}顆</span> <span style="color:#556;">${wStr}</span> <span style="color:#7ab;">${wavesStr}</span>${tagHtml}${extra}`;
+      item.innerHTML = `<span style="color:#556;">w:${script.w}</span> <span style="color:#7ab;">${wavesStr}</span>${tagHtml}${extra}`;
       item.onclick = () => startCheatWithScript(total, idx);
       list.appendChild(item);
     });
@@ -628,7 +635,9 @@ function buildScriptPanel(){
 function startCheatWithScript(total, scriptIdx){
   const script = DRAGON_PERF.scripts[total]?.[scriptIdx];
   if(!script) return;
-  const [sc, bc] = CHEAT_SPLITS[total] || [Math.ceil(total/2), Math.floor(total/2)];
+  // 直接用 req_big 決定大球數量，不再依賴寫死的 CHEAT_SPLITS
+  const bc = script.req_big !== undefined ? script.req_big : 1;
+  const sc = total - bc;
   const smalls = Array.from({length: sc}, () => ({ type:'small', mul: wr(SMALL_MULS, SMALL_MULS_W), r: SMALL_R }));
   const bigs   = Array.from({length: bc}, () => ({ type:'big',   mul: wr(BIG_MULS,   BIG_MULS_W),   r: BIG_R   }));
   resetGame();
@@ -797,6 +806,34 @@ function drawRingArcs(cx, cy, startA, endA, alpha, lineW){
 }
 
 // ═══════════════════════════════════════════════════
+// 連鎖閃電弧（每顆 isChain 球在飛行中及落地後畫閃電連線）
+// ═══════════════════════════════════════════════════
+function drawChainArcs(now){
+  eBalls.forEach(b => {
+    if(!b.isChain) return;
+
+    let ex, ey, alpha;
+
+    if(!b.arrived){
+      // 飛行中：從 spawn 點連到當前位置
+      ex = b.x; ey = b.y;
+      alpha = 0.55 + 0.35 * Math.sin(now * 0.022);
+    } else if(b.arcT >= 0){
+      // 落地後：固定弧，逐漸消退
+      const t = (now - b.arcT) / CHAIN_ARC_DUR;
+      if(t >= 1) return;
+      ex = b.tx; ey = b.ty;
+      alpha = (1 - t) * 0.75;
+    } else return;
+
+    // 主弧（青白色）
+    drawLightningBolt(b.sx, b.sy, ex, ey, 3, 22, alpha, 2.2, '#66eeff');
+    // 次弧（淡藍，偏移 2px 製造厚度感）
+    drawLightningBolt(b.sx + 1, b.sy + 1, ex + 1, ey + 1, 2, 16, alpha * 0.45, 1.2, '#aaddff');
+  });
+}
+
+// ═══════════════════════════════════════════════════
 // 電球繪製（固定在場上，無數值）
 // ═══════════════════════════════════════════════════
 function drawBalls(){
@@ -858,15 +895,22 @@ function drawBalls(){
 // ═══════════════════════════════════════════════════
 const BALL_FLY_DUR = 700;
 
-function spawnBall(ball){
+function spawnBall(ball, chainSrc){
   if(ball.type === 'big'){ hasBigFired = true; bigFireT = Date.now(); }
-  const cx = DCX + curTx, cy = DCY + curTy;
+  const isChain = !!chainSrc;
+  const sx = isChain ? chainSrc.x : DCX + curTx;
+  const sy = isChain ? chainSrc.y : DCY + curTy;
   eBalls.push({
-    sx: cx, sy: cy, x: cx, y: cy,
+    sx, sy, x: sx, y: sy,
     tx: ball.tx, ty: ball.ty,
     r: ball.r, type: ball.type, mul: ball.mul,
     alpha: 1, t0: Date.now(), arrived: false,
+    isChain,                      // 是否為連鎖球
+    flyDur: isChain ? CHAIN_FLY_DUR : BALL_FLY_DUR,  // 飛行時間
+    arcT: -1,                     // 落地後閃電弧開始時間
   });
+  // 記錄本顆球的落點，供下一顆連鎖球使用
+  chainBallSrc = { x: ball.tx, y: ball.ty };
 }
 
 // ═══════════════════════════════════════════════════
@@ -909,29 +953,46 @@ function updatePhase(now){
     else if(execState === 'charging'){
       spinSpd = topSpd;
       ringAngle += spinSpd;
-      const dur = chargeIsBig ? CHARGE_DUR_BIG : CHARGE_DUR_SMALL;
+      const isChainBall = (execBallIdx > 0);
+      // 連鎖球不蓄力；第一顆才做蓄力動畫
+      const dur = isChainBall ? 40
+                : (chargeIsBig ? CHARGE_DUR_BIG : CHARGE_DUR_SMALL);
       const cp  = Math.min((now - execT) / dur, 1);
-      // 蓄力動畫：龍的縮放先縮後放
-      window._dragonScale = 0.72 - 0.10 * Math.sin(cp * Math.PI);
+      if(!isChainBall){
+        window._dragonScale = 0.72 - 0.10 * Math.sin(cp * Math.PI);
+      }
       if(cp >= 1){
         window._dragonScale = 0.72;
-        spawnBall(execWaves[execWaveIdx][execBallIdx]);
+        const src = isChainBall ? chainBallSrc : null;
+        spawnBall(execWaves[execWaveIdx][execBallIdx], src);
         ballsFired++;
-        ringBurstT = now;
+        if(!isChainBall) ringBurstT = now;  // 只有第一顆有衝擊波
         const wave = execWaves[execWaveIdx];
         if(execBallIdx < wave.length - 1){
           execBallIdx++;
-          execState = 'ball_interval';
+          // 連鎖球用短間隔；第一顆後的第二顆用 chain_interval
+          execState = 'chain_interval';
           execT = now;
         } else if(execWaveIdx < execWaves.length - 1){
           execWaveIdx++;
           execBallIdx = 0;
+          chainBallSrc = null;  // 新波次從龍中心重新開始
           execState = 'wave_pause';
           execT = now;
         } else {
           execState = 'decel';
           execT = now;
         }
+      }
+    }
+    else if(execState === 'chain_interval'){
+      // 連鎖間隔（比一般 ball_interval 短）
+      spinSpd = topSpd;
+      ringAngle += spinSpd;
+      if(now - execT >= CHAIN_INTERVAL){
+        chargeIsBig = (execWaves[execWaveIdx][execBallIdx].type === 'big');
+        execState = 'charging';
+        execT = now;
       }
     }
     else if(execState === 'ball_interval'){
@@ -970,11 +1031,14 @@ function updatePhase(now){
   // 更新電球飛行位置
   eBalls.forEach(b => {
     if(b.arrived) return;
-    const t = Math.min((now - b.t0) / BALL_FLY_DUR, 1);
+    const t = Math.min((now - b.t0) / (b.flyDur || BALL_FLY_DUR), 1);
     const et = 1 - Math.pow(1 - t, 3);   // easeOutCubic
     b.x = b.sx + (b.tx - b.sx) * et;
     b.y = b.sy + (b.ty - b.sy) * et;
-    if(t >= 1) b.arrived = true;
+    if(t >= 1){
+      b.arrived = true;
+      if(b.isChain && b.arcT < 0) b.arcT = now;  // 連鎖弧開始計時
+    }
   });
 }
 
@@ -1039,7 +1103,10 @@ function render(){
   // ⑤ 電光環前段（壓在龍上方）
   if(spinning) drawRingArcs(cx, cy, 0, Math.PI, 0.85, 4.5);
 
-  // ⑥ 場上電球
+  // ⑥ 連鎖閃電弧（在球之下）
+  drawChainArcs(now);
+
+  // ⑦ 場上電球
   drawBalls();
 
   requestAnimationFrame(render);
@@ -1123,7 +1190,7 @@ function resetGame(){
   window._dragonScale = 0.72;
   allCoins = []; eBalls = [];
   phase = 'idle'; spinSpd = 0; ballsFired = 0; ringAngle = 0; ballSequence = []; isJackpot = false; _cheatReady = false;
-  execState = 'idle'; execT = 0; execWaves = []; execWaveIdx = 0; execBallIdx = 0; chargeIsBig = false; ringBurstT = -1; execScript = null; hasBigFired = false; bigFireT = -1;
+  execState = 'idle'; execT = 0; execWaves = []; execWaveIdx = 0; execBallIdx = 0; chargeIsBig = false; ringBurstT = -1; execScript = null; hasBigFired = false; bigFireT = -1; chainBallSrc = null;
   document.getElementById('abtn').style.opacity = '1';
   document.getElementById('mulEl').style.opacity = '0';
   document.getElementById('winEl').style.display = 'none';
