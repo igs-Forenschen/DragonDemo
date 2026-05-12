@@ -395,6 +395,7 @@ let n_gasIdx  = 0,  n_gasT    = -1;
 let n_lastLandT    = -1;
 let n_allExplodeT  = -1;   // 全體爆炸觸發時間（毒氣全到位後 500ms）
 let n_hideLabels   = false; // 金幣收集完畢後隱藏倍率文字
+let n_popOverlays  = [];   // ×N 乘倍彈出特效
 let n_dragonForm = 21;   // 21=idle/shake, 22=fire, 23=gas
 let n_fireBalls  = [];
 let n_gasBalls   = [];
@@ -663,10 +664,14 @@ function updatePhaseNormal(now) {
       if (fb && !fb.gasHit) {
         fb.gasHit = true;   // 切換顯示為 finalVal
         fb.popT   = now;    // 觸發彈跳動畫
+        // ×N 彈出特效
+        n_popOverlays.push({ x: fb.tx, y: fb.ty, text: '×' + fb.dblVal, t0: now, r: fb.r });
       }
       // 爆炸統一在 gas_wait 全到位後 500ms 引爆
     }
   });
+  // 清理已結束的 overlay（壽命 1100ms）
+  n_popOverlays = n_popOverlays.filter(po => now - po.t0 < 1100);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1041,6 +1046,38 @@ function drawFireBallsNormal(now) {
     ctx.beginPath();
     ctx.arc(fb.x - r*0.28, fb.y - r*0.3, r*0.28, 0, Math.PI*2);
     ctx.fillStyle = 'rgba(255,255,255,0.40)'; ctx.fill();
+    ctx.restore();
+  });
+}
+
+// ── 繪製：×N 彈出特效（一般）──
+function drawPopOverlaysNormal(now) {
+  const POP_TOTAL = 1100;
+  n_popOverlays.forEach(po => {
+    const t = Math.min((now - po.t0) / POP_TOTAL, 1);
+    if (t >= 1) return;
+    // 縮放彈跳：前 20% 衝大，之後落回
+    const scalePhase = t < 0.2 ? t / 0.2 : 1;
+    const bounce = scalePhase < 1 ? 0.9 + 0.35 * Math.sin(scalePhase * Math.PI) : 1.0;
+    // 透明度：淡入 → 停留 → 淡出
+    const alpha = t < 0.15 ? t / 0.15 : t < 0.5 ? 1 : 1 - (t - 0.5) / 0.5;
+    // 向上漂移
+    const floatY = po.r * 1.4 * t;
+    const fs = Math.round(po.r * 1.3);
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, alpha);
+    ctx.translate(po.x, po.y - floatY);
+    ctx.scale(bounce, bounce);
+    ctx.font = `900 ${fs}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#7a3a00';
+    ctx.lineWidth   = fs * 0.18;
+    ctx.lineJoin    = 'round';
+    ctx.strokeText(po.text, 0, 0);
+    ctx.fillStyle  = '#fff066';
+    ctx.shadowColor = '#ff9900'; ctx.shadowBlur = 14;
+    ctx.fillText(po.text, 0, 0);
     ctx.restore();
   });
 }
@@ -1626,6 +1663,7 @@ function render() {
     drawDragonNormal(now);
     drawFireBallsNormal(now);
     drawGasBallsNormal(now);
+    drawPopOverlaysNormal(now);
   } else {
     drawDragonMega(now);
     drawFireBallsMega(now);
@@ -1679,7 +1717,7 @@ function resetGame() {
   n_fireBalls=[]; n_gasBalls=[]; n_dragonForm=21;
   n_shakeT=-1; n_changeT=-1; n_fireIdx=0; n_fireT=-1;
   n_gasIdx=0; n_gasT=-1; n_lastLandT=-1;
-  n_allExplodeT=-1; n_hideLabels=false;
+  n_allExplodeT=-1; n_hideLabels=false; n_popOverlays=[];
 
   // MEGA
   m_fireBalls=[]; m_gasBallsActive=[]; m_muzzleFlashes=[]; m_popOverlays=[];
