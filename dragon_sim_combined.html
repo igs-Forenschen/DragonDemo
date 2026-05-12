@@ -17,7 +17,52 @@ body{background:#0f0f13;color:#ddd;font-family:'Segoe UI',system-ui,sans-serif;m
 .tab.elec{color:#44ccff;border-color:#142030;}
 .tab.elec.active{background:#091820;border-color:#44ccff;color:#66ddff;}
 .tab.elec:not(.active):hover{background:#071015;}
+.tab.dragon{color:#88ee88;border-color:#1a2e1a;}
+.tab.dragon.active{background:#0e1e0e;border-color:#44cc66;color:#aaffaa;}
+.tab.dragon:not(.active):hover{background:#0a150a;}
+.tab.dm{color:#ffbb55;border-color:#2e2010;}
+.tab.dm.active{background:#1e1408;border-color:#ff9922;color:#ffcc77;}
+.tab.dm:not(.active):hover{background:#160e04;}
 .tab-border{border-bottom:0.5px solid #2e2e3a;margin-bottom:20px;}
+
+/* 雙頭龍配色 */
+.sec-title.d-cnt{color:#44cc88;}
+.sec-title.d-mul{color:#88aaff;}
+.sec-title.d-dbl{color:#ffcc44;}
+button.run-dragon{width:100%;background:#1a4422;border:none;border-radius:7px;color:#fff;font-size:14px;font-weight:600;padding:11px;cursor:pointer;transition:background .15s;}
+button.run-dragon:hover{background:#226633;}
+
+/* 雙頭龍 Mega 配色 */
+.sec-title.dm-s-cnt{color:#44cc88;}
+.sec-title.dm-s-mul{color:#88aaff;}
+.sec-title.dm-s-dbl{color:#ffcc44;}
+.sec-title.dm-b-cnt{color:#ffaa44;}
+.sec-title.dm-b-mul{color:#ff7788;}
+.sec-title.dm-b-dbl{color:#ffee66;}
+.dm-sep{border:none;border-top:0.5px solid #2e2e3a;margin:4px 0;}
+.dm-section-lbl{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 0 2px;margin-bottom:4px;}
+.dm-section-lbl.small{color:#44cc88;}
+.dm-section-lbl.big{color:#ffaa44;}
+button.run-dm{width:100%;background:#5a3000;border:none;border-radius:7px;color:#fff;font-size:14px;font-weight:600;padding:11px;cursor:pointer;transition:background .15s;}
+button.run-dm:hover{background:#884400;}
+.ev-header.dm{background:#1c1508;border-color:#3a2e10;}
+.dm-ball-tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.08em;padding:2px 8px;border-radius:10px;margin-right:4px;}
+.dm-ball-tag.small{background:#0e2a1a;color:#44cc88;border:0.5px solid #225533;}
+.dm-ball-tag.big{background:#2a1a08;color:#ffaa44;border:0.5px solid #553322;}
+.ev-sub{font-size:13px;color:#666;margin:6px 0 4px;border-top:0.5px solid #2a2a1a;padding-top:8px;}
+
+/* EV 即時顯示頭部 */
+.ev-header{background:#111c14;border:0.5px solid #2a4a2a;border-radius:10px;padding:14px 18px;margin-bottom:4px;}
+.ev-header-top{display:flex;align-items:baseline;gap:8px;margin-bottom:12px;}
+.ev-total-lbl{font-size:12px;color:#66aa66;letter-spacing:.06em;text-transform:uppercase;}
+.ev-total-val{font-size:32px;font-weight:700;color:#aaffaa;letter-spacing:-.01em;}
+.ev-formula{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.ev-part{text-align:center;}
+.ev-part-lbl{font-size:10px;color:#668866;margin-bottom:2px;}
+.ev-part-val{font-size:18px;font-weight:600;}
+.ev-x{font-size:18px;color:#446644;font-weight:300;}
+.ev-eq{font-size:18px;color:#446644;}
+
 
 /* ── 共用版面 ── */
 .layout{display:grid;grid-template-columns:360px 1fr;gap:18px;align-items:start;}
@@ -77,6 +122,8 @@ td:not(:first-child){text-align:right;}
 <div class="tabs">
   <div class="tab fire active" onclick="switchTab('fire')">🐉 火龍模擬器</div>
   <div class="tab elec" onclick="switchTab('elec')">⚡ 電龍模擬器</div>
+  <div class="tab dragon" onclick="switchTab('dragon')">🐲 雙頭龍模擬器</div>
+  <div class="tab dm" onclick="switchTab('dm')">⚔ 雙頭龍 Mega</div>
 </div>
 
 <!-- ══════════════════════════════════════════ -->
@@ -211,6 +258,262 @@ td:not(:first-child){text-align:right;}
 </div>
 </div>
 
+<!-- ══════════════════════════════════════════ -->
+<!-- 雙頭龍頁面                                 -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="page-dragon">
+
+<!-- EV 即時顯示（頁面頂部橫幅）-->
+<div class="ev-header" id="d_evHeader">
+  <div class="ev-header-top">
+    <span class="ev-total-lbl">總期望值 (TOTAL EV)</span>
+    <span class="ev-total-val" id="d_evTotal">—</span>
+  </div>
+  <div class="ev-formula">
+    <div class="ev-part">
+      <div class="ev-part-lbl">小球顆數 EV</div>
+      <div class="ev-part-val" id="d_evCnt" style="color:#44cc88;">—</div>
+    </div>
+    <span class="ev-x">×</span>
+    <div class="ev-part">
+      <div class="ev-part-lbl">小球倍率 EV</div>
+      <div class="ev-part-val" id="d_evMul" style="color:#88aaff;">—</div>
+    </div>
+    <span class="ev-x">×</span>
+    <div class="ev-part">
+      <div class="ev-part-lbl">翻倍數 EV</div>
+      <div class="ev-part-val" id="d_evDbl" style="color:#ffcc44;">—</div>
+    </div>
+    <span class="ev-eq">=</span>
+    <div class="ev-part">
+      <div class="ev-part-lbl">公式：顆數 EV × 倍率 EV × 翻倍 EV</div>
+      <div class="ev-part-val" id="d_evTotal2" style="color:#aaffaa;">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+<div class="settings">
+  <div class="sec-card">
+    <div class="sec-title gray">模擬設定</div>
+    <div class="field-row">
+      <div class="field-label">模擬局數</div>
+      <select id="d_simN">
+        <option value="1000">1,000 局</option>
+        <option value="5000">5,000 局</option>
+        <option value="10000" selected>10,000 局</option>
+        <option value="30000">30,000 局</option>
+        <option value="100000">100,000 局</option>
+      </select>
+    </div>
+    <div class="hint">局數越大結果越穩定，但計算較慢</div>
+  </div>
+
+  <div class="sec-card">
+    <div class="sec-title d-cnt">小球顆數</div>
+    <div class="field-row">
+      <div class="field-label">顆數（逗號分隔）</div>
+      <input type="text" id="d_cs" value="2,3,4,5" oninput="updateDragonEV()">
+    </div>
+    <div class="field-row">
+      <div class="field-label">次數對應權重（數量需相同）</div>
+      <input type="text" id="d_csw" value="25,10,8,3" oninput="updateDragonEV()">
+    </div>
+  </div>
+
+  <div class="sec-card">
+    <div class="sec-title d-mul">小球倍率（x）</div>
+    <div class="field-row">
+      <div class="field-label">倍率（逗號分隔）</div>
+      <input type="text" id="d_ms" value="40,50,60" oninput="updateDragonEV()">
+    </div>
+    <div class="field-row">
+      <div class="field-label">倍率對應權重（數量需相同）</div>
+      <input type="text" id="d_msw" value="35,20,10" oninput="updateDragonEV()">
+    </div>
+  </div>
+
+  <div class="sec-card">
+    <div class="sec-title d-dbl">翻倍數</div>
+    <div class="field-row">
+      <div class="field-label">翻倍數值（逗號分隔）</div>
+      <input type="text" id="d_ds" value="1,2,3,4" oninput="updateDragonEV()">
+    </div>
+    <div class="field-row">
+      <div class="field-label">翻倍對應權重（數量需相同）</div>
+      <input type="text" id="d_dsw" value="30,15,5,1" oninput="updateDragonEV()">
+    </div>
+  </div>
+
+  <button class="run-dragon" onclick="runSimDragon()">▶ 開始模擬</button>
+</div>
+
+<div class="results" id="d_results">
+  <div class="empty">調整左側參數後按「開始模擬」<br><span style="font-size:11px;color:#446644;">※ 上方 EV 數值會即時更新</span></div>
+</div>
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- 雙頭龍 Mega 頁面                           -->
+<!-- ══════════════════════════════════════════ -->
+<div class="page" id="page-dm">
+
+<!-- EV 即時顯示 -->
+<div class="ev-header dm" style="margin-bottom:16px;">
+  <div class="ev-header-top">
+    <span class="ev-total-lbl">總期望值 EV</span>
+    <span class="ev-total-val" id="dm_evTotal">—</span>
+    <span style="font-size:13px;color:#aa7722;margin-left:4px;">x</span>
+  </div>
+  <!-- 小球公式 -->
+  <div class="ev-formula" style="margin-bottom:10px;">
+    <span class="dm-ball-tag small">小球</span>
+    <div class="ev-part">
+      <div class="ev-part-lbl">顆數 EV</div>
+      <div class="ev-part-val" id="dm_evSCnt" style="color:#44cc88;">—</div>
+    </div>
+    <span class="ev-x">×</span>
+    <div class="ev-part">
+      <div class="ev-part-lbl">倍率 EV</div>
+      <div class="ev-part-val" id="dm_evSMul" style="color:#88aaff;">—</div>
+    </div>
+    <span class="ev-x">×</span>
+    <div class="ev-part">
+      <div class="ev-part-lbl">翻倍 EV</div>
+      <div class="ev-part-val" id="dm_evSDbl" style="color:#ffcc44;">—</div>
+    </div>
+    <span class="ev-eq">=</span>
+    <div class="ev-part">
+      <div class="ev-part-lbl">小球貢獻</div>
+      <div class="ev-part-val" id="dm_evSSub" style="color:#aaffaa;">—</div>
+    </div>
+  </div>
+  <!-- 大球公式 -->
+  <div class="ev-formula">
+    <span class="dm-ball-tag big">大球</span>
+    <div class="ev-part">
+      <div class="ev-part-lbl">顆數 EV</div>
+      <div class="ev-part-val" id="dm_evBCnt" style="color:#ffaa44;">—</div>
+    </div>
+    <span class="ev-x">×</span>
+    <div class="ev-part">
+      <div class="ev-part-lbl">倍率 EV</div>
+      <div class="ev-part-val" id="dm_evBMul" style="color:#ff7788;">—</div>
+    </div>
+    <span class="ev-x">×</span>
+    <div class="ev-part">
+      <div class="ev-part-lbl">翻倍 EV</div>
+      <div class="ev-part-val" id="dm_evBDbl" style="color:#ffee66;">—</div>
+    </div>
+    <span class="ev-eq">=</span>
+    <div class="ev-part">
+      <div class="ev-part-lbl">大球貢獻</div>
+      <div class="ev-part-val" id="dm_evBSub" style="color:#ffddaa;">—</div>
+    </div>
+    <span style="font-size:18px;color:#664422;padding:0 6px;">+</span>
+    <div class="ev-part">
+      <div class="ev-part-lbl">公式：小球EV + 大球EV</div>
+      <div class="ev-part-val" id="dm_evTotal2" style="color:#ffcc77;">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+<div class="settings">
+  <!-- 模擬設定 -->
+  <div class="sec-card">
+    <div class="sec-title gray">模擬設定</div>
+    <div class="field-row">
+      <div class="field-label">模擬局數</div>
+      <select id="dm_simN">
+        <option value="1000">1,000 局</option>
+        <option value="5000">5,000 局</option>
+        <option value="10000" selected>10,000 局</option>
+        <option value="30000">30,000 局</option>
+        <option value="100000">100,000 局</option>
+      </select>
+    </div>
+    <div class="hint">局數越大結果越穩定，但計算較慢</div>
+  </div>
+
+  <!-- 小球 -->
+  <div class="sec-card">
+    <div class="dm-section-lbl small">▸ 小球設定</div>
+    <div class="sec-title dm-s-cnt" style="margin-top:8px;">小球顆數</div>
+    <div class="field-row">
+      <div class="field-label">顆數（逗號分隔）</div>
+      <input type="text" id="dm_scs" value="2,3,4,5" oninput="updateDragonMegaEV()">
+    </div>
+    <div class="field-row">
+      <div class="field-label">顆數對應權重</div>
+      <input type="text" id="dm_scsw" value="25,10,8,3" oninput="updateDragonMegaEV()">
+    </div>
+    <hr class="dm-sep">
+    <div class="sec-title dm-s-mul" style="margin-top:10px;">小球倍率（x）</div>
+    <div class="field-row">
+      <div class="field-label">倍率（逗號分隔）</div>
+      <input type="text" id="dm_sms" value="40,50,60" oninput="updateDragonMegaEV()">
+    </div>
+    <div class="field-row">
+      <div class="field-label">倍率對應權重</div>
+      <input type="text" id="dm_smsw" value="35,20,10" oninput="updateDragonMegaEV()">
+    </div>
+    <hr class="dm-sep">
+    <div class="sec-title dm-s-dbl" style="margin-top:10px;">小球翻倍數</div>
+    <div class="field-row">
+      <div class="field-label">翻倍數值（逗號分隔）</div>
+      <input type="text" id="dm_sds" value="1,2,3,4" oninput="updateDragonMegaEV()">
+    </div>
+    <div class="field-row">
+      <div class="field-label">翻倍對應權重</div>
+      <input type="text" id="dm_sdsw" value="30,15,5,1" oninput="updateDragonMegaEV()">
+    </div>
+  </div>
+
+  <!-- 大球 -->
+  <div class="sec-card">
+    <div class="dm-section-lbl big">▸ 大球設定</div>
+    <div class="sec-title dm-b-cnt" style="margin-top:8px;">大球顆數</div>
+    <div class="field-row">
+      <div class="field-label">顆數（逗號分隔）</div>
+      <input type="text" id="dm_bcs" value="0,1,2,3" oninput="updateDragonMegaEV()">
+    </div>
+    <div class="field-row">
+      <div class="field-label">顆數對應權重</div>
+      <input type="text" id="dm_bcsw" value="30,25,15,3" oninput="updateDragonMegaEV()">
+    </div>
+    <hr class="dm-sep">
+    <div class="sec-title dm-b-mul" style="margin-top:10px;">大球倍率（x）</div>
+    <div class="field-row">
+      <div class="field-label">倍率（逗號分隔）</div>
+      <input type="text" id="dm_bms" value="200,300,400" oninput="updateDragonMegaEV()">
+    </div>
+    <div class="field-row">
+      <div class="field-label">倍率對應權重</div>
+      <input type="text" id="dm_bmsw" value="30,15,5" oninput="updateDragonMegaEV()">
+    </div>
+    <hr class="dm-sep">
+    <div class="sec-title dm-b-dbl" style="margin-top:10px;">大球翻倍數</div>
+    <div class="field-row">
+      <div class="field-label">翻倍數值（逗號分隔）</div>
+      <input type="text" id="dm_bds" value="1,2,3" oninput="updateDragonMegaEV()">
+    </div>
+    <div class="field-row">
+      <div class="field-label">翻倍對應權重</div>
+      <input type="text" id="dm_bdsw" value="20,10,3" oninput="updateDragonMegaEV()">
+    </div>
+  </div>
+
+  <button class="run-dm" onclick="runSimDragonMega()">▶ 開始模擬</button>
+</div>
+
+<div class="results" id="dm_results">
+  <div class="empty">調整左側參數後按「開始模擬」<br><span style="font-size:11px;color:#664422;">※ 上方 EV 數值會即時更新</span></div>
+</div>
+</div>
+</div><!-- /page-dm -->
+
 <script>
 // ══════════════════════════════════════════════════
 // 頁籤切換
@@ -234,10 +537,17 @@ var RANGE_DEF=[
   {l:'1500x 以上',   min:1500, max:999999, c:'#D85A30'}
 ];
 
+// 初始化雙頭龍 EV（頁面載入後自動計算）
+window.addEventListener('DOMContentLoaded', function(){
+  updateDragonEV();
+  updateDragonMegaEV();
+});
+
 // 各頁面獨立 state
 var STATE = {
   f: {tc:{}, N:0, ss:[], bs:[], tsc:{}, tbc:{}},
-  e: {tc:{}, N:0, ss:[], bs:[], tsc:{}, tbc:{}}
+  e: {tc:{}, N:0, ss:[], bs:[], tsc:{}, tbc:{}},
+  d: {N:0, cntDist:{}, mulDist:{}, dblDist:{}}
 };
 
 // ══════════════════════════════════════════════════
@@ -445,6 +755,378 @@ function runSim(p){
   r.appendChild(r3); r.appendChild(r4);
 
   setTimeout(function(){ updateTimings(p); }, 50);
+}
+
+// ══════════════════════════════════════════════════
+// 雙頭龍：即時 EV 計算
+// ══════════════════════════════════════════════════
+function updateDragonEV(){
+  var cs  = parseList('d_cs'),  csw = parseList('d_csw');
+  var ms  = parseList('d_ms'),  msw = parseList('d_msw');
+  var ds  = parseList('d_ds'),  dsw = parseList('d_dsw');
+  if(!cs.length||!csw.length||cs.length!==csw.length) return;
+  if(!ms.length||!msw.length||ms.length!==msw.length) return;
+  if(!ds.length||!dsw.length||ds.length!==dsw.length) return;
+
+  var evC = evf(cs, csw);
+  var evM = evf(ms, msw);
+  var evD = evf(ds, dsw);
+  var tot = evC * evM * evD;
+
+  document.getElementById('d_evCnt').textContent   = evC.toFixed(3);
+  document.getElementById('d_evMul').textContent   = evM.toFixed(3);
+  document.getElementById('d_evDbl').textContent   = evD.toFixed(3);
+  document.getElementById('d_evTotal').textContent  = tot.toFixed(2);
+  document.getElementById('d_evTotal2').textContent = tot.toFixed(2);
+}
+
+// ══════════════════════════════════════════════════
+// 雙頭龍：蒙地卡羅模擬
+// ══════════════════════════════════════════════════
+function validateDragon(){
+  var cs=parseList('d_cs'),csw=parseList('d_csw');
+  var ms=parseList('d_ms'),msw=parseList('d_msw');
+  var ds=parseList('d_ds'),dsw=parseList('d_dsw');
+  if(cs.length!==csw.length||cs.length===0) return '小球顆數：數值與權重數量不一致';
+  if(ms.length!==msw.length||ms.length===0) return '小球倍率：數值與權重數量不一致';
+  if(ds.length!==dsw.length||ds.length===0) return '翻倍數：數值與權重數量不一致';
+  return null;
+}
+
+function runSimDragon(){
+  var err = validateDragon();
+  if(err){ alert('❌ 參數錯誤：'+err); return; }
+
+  var N   = +document.getElementById('d_simN').value;
+  var cs  = parseList('d_cs'),  csw = parseList('d_csw');
+  var ms  = parseList('d_ms'),  msw = parseList('d_msw');
+  var ds  = parseList('d_ds'),  dsw = parseList('d_dsw');
+
+  // 理論 EV
+  var evC = evf(cs,csw), evM = evf(ms,msw), evD = evf(ds,dsw);
+  var theoryEV = evC * evM * evD;
+
+  // 最大 / 最小
+  var maxPrize = Math.max.apply(null,cs) * Math.max.apply(null,ms) * Math.max.apply(null,ds);
+  var minPrize = Math.min.apply(null,cs) * Math.min.apply(null,ms) * Math.min.apply(null,ds);
+
+  // 分佈 Range
+  var RANGE_D = [
+    {l:'0 ~ 100x',    min:0,    max:100,   c:'#44aa66'},
+    {l:'100 ~ 300x',  min:100,  max:300,   c:'#3388aa'},
+    {l:'300 ~ 600x',  min:300,  max:600,   c:'#5566cc'},
+    {l:'600 ~ 1000x', min:600,  max:1000,  c:'#9944cc'},
+    {l:'1000x 以上',  min:1000, max:999999, c:'#cc8844'}
+  ];
+  var rc = []; for(var ri=0;ri<RANGE_D.length;ri++) rc.push(0);
+
+  var total=0, maxV=0, minV=999999, i, j;
+  var cntDist={}, mulDist={}, dblDist={};
+
+  for(i=0;i<N;i++){
+    var cnt  = wr(cs,csw);
+    var sum  = 0;
+    var mulAcc=0, dblAcc=0;
+    for(j=0;j<cnt;j++){
+      var m = wr(ms,msw);
+      var d = wr(ds,dsw);
+      sum += m * d;
+      mulAcc += m; dblAcc += d;
+    }
+    cntDist[cnt] = (cntDist[cnt]||0) + 1;
+    // 紀錄倍率與翻倍的整局累計
+    var mk = Math.round(mulAcc/cnt); mulDist[mk] = (mulDist[mk]||0) + 1;
+    var dk = dblAcc; dblDist[dk]   = (dblDist[dk]||0) + 1;
+
+    total += sum;
+    if(sum>maxV) maxV=sum;
+    if(sum<minV) minV=sum;
+    for(var ki=0;ki<RANGE_D.length;ki++){
+      if(sum>=RANGE_D[ki].min && sum<RANGE_D[ki].max){ rc[ki]++; break; }
+    }
+  }
+  if(maxV>=RANGE_D[RANGE_D.length-1].min) rc[RANGE_D.length-1]++;
+
+  STATE.d = {N:N, cntDist:cntDist, mulDist:mulDist, dblDist:dblDist};
+
+  var avg = (total/N).toFixed(2);
+  var maxN_r = Math.max.apply(null, rc.map(function(v){return v||1;}));
+
+  var r = document.getElementById('d_results');
+
+  // info bar
+  var d0 = document.createElement('div'); d0.className='info-bar';
+  d0.innerHTML =
+    '理論期望：<strong style="color:#aaffaa">'+ theoryEV.toFixed(2) +'x</strong>　' +
+    '顆數 EV：<strong style="color:#44cc88">'+ evC.toFixed(3) +'</strong>　' +
+    '倍率 EV：<strong style="color:#88aaff">'+ evM.toFixed(3) +'x</strong>　' +
+    '翻倍 EV：<strong style="color:#ffcc44">'+ evD.toFixed(3) +'</strong>　' +
+    '理論最大：<strong>'+ maxPrize.toLocaleString() +'x</strong>';
+
+  // 摘要卡片
+  var cd = document.createElement('div'); cd.className='cards';
+  cd.innerHTML =
+    '<div class="card"><div class="card-lbl">模擬平均回報</div><div class="card-val" style="color:#aaffaa">'+ avg +'x</div><div class="card-sub">理論 '+ theoryEV.toFixed(2) +'x</div></div>'+
+    '<div class="card"><div class="card-lbl">本次最高</div><div class="card-val">'+ maxV.toLocaleString() +'x</div><div class="card-sub">理論上限 '+ maxPrize.toLocaleString() +'x</div></div>'+
+    '<div class="card"><div class="card-lbl">本次最低</div><div class="card-val">'+ minV +'x</div><div class="card-sub">理論下限 '+ minPrize +'x</div></div>'+
+    '<div class="card"><div class="card-lbl">模擬局數</div><div class="card-val">'+ N.toLocaleString() +'</div><div class="card-sub">本次模擬</div></div>';
+
+  // 倍率區間
+  var r1 = document.createElement('div'); r1.className='res-card';
+  var t1 = '<div class="res-title">開獎倍率區間分佈</div><table><tr><th>倍率區間</th><th>次數</th><th>機率</th><th>分佈</th></tr>';
+  for(var ri2=0;ri2<RANGE_D.length;ri2++){
+    t1 += '<tr><td style="font-weight:500">'+ RANGE_D[ri2].l +'</td><td>'+ rc[ri2].toLocaleString() +'</td><td>'+ pct(rc[ri2],N) +'</td><td>'+ barHtml(rc[ri2], maxN_r, RANGE_D[ri2].c) +'</td></tr>';
+  }
+  t1 += '</table>'; r1.innerHTML = t1;
+
+  // 顆數分佈
+  var maxCN = Math.max.apply(null, cs.map(function(c){ return cntDist[c]||1; }));
+  var csTot = csw.reduce(function(a,b){return a+b;},0);
+  var r2 = document.createElement('div'); r2.className='res-card';
+  var t2 = '<div class="res-title">小球顆數分佈</div><table><tr><th>顆數</th><th>理論機率</th><th>模擬機率</th><th>出現次數</th><th>分佈</th></tr>';
+  for(var ci2=0;ci2<cs.length;ci2++){
+    var cv=cs[ci2], cc=cntDist[cv]||0;
+    t2 += '<tr><td style="font-weight:500">'+ cv +' 顆</td><td>'+ pct(csw[ci2],csTot) +'</td><td>'+ pct(cc,N) +'</td><td>'+ cc.toLocaleString() +'</td><td>'+ barHtml(cc,maxCN,'#44cc88') +'</td></tr>';
+  }
+  t2 += '</table>'; r2.innerHTML = t2;
+
+  // 翻倍數分佈
+  var msTot = msw.reduce(function(a,b){return a+b;},0);
+  var dsTot = dsw.reduce(function(a,b){return a+b;},0);
+  var r3 = document.createElement('div'); r3.className='res-card';
+  var t3 = '<div class="res-title">翻倍數分佈（每局各球翻倍加總）</div>';
+  // 計算各翻倍加總的出現分佈
+  var dKeys = Object.keys(dblDist).map(Number).sort(function(a,b){return a-b;});
+  var maxDN = Math.max.apply(null, dKeys.map(function(k){return dblDist[k]||1;})); if(!maxDN) maxDN=1;
+  t3 += '<table><tr><th>翻倍加總</th><th>出現次數</th><th>模擬機率</th><th>分佈</th></tr>';
+  dKeys.forEach(function(k){
+    var dc = dblDist[k]||0;
+    t3 += '<tr><td style="font-weight:500">'+ k +'</td><td>'+ dc.toLocaleString() +'</td><td>'+ pct(dc,N) +'</td><td>'+ barHtml(dc,maxDN,'#ffcc44') +'</td></tr>';
+  });
+  t3 += '</table>';
+  // 附上翻倍數各值理論機率
+  t3 += '<div style="margin-top:12px;padding-top:10px;border-top:0.5px solid #222;"><div style="font-size:11px;color:#888;margin-bottom:6px;">單顆球翻倍數理論機率</div>';
+  t3 += '<table><tr><th>翻倍數</th><th>理論機率</th></tr>';
+  for(var di=0;di<ds.length;di++){
+    t3 += '<tr><td>'+ ds[di] +'x</td><td>'+ pct(dsw[di],dsTot) +'</td></tr>';
+  }
+  t3 += '</table></div>';
+  r3.innerHTML = t3;
+
+  // 小球倍率理論機率
+  var r4 = document.createElement('div'); r4.className='res-card';
+  var t4 = '<div class="res-title">小球倍率理論機率</div><table><tr><th>倍率</th><th>理論機率</th><th>分佈</th></tr>';
+  var maxMW = Math.max.apply(null, msw);
+  for(var mi=0;mi<ms.length;mi++){
+    t4 += '<tr><td style="font-weight:500">'+ ms[mi] +'x</td><td>'+ pct(msw[mi],msTot) +'</td><td>'+ barHtml(msw[mi],maxMW,'#88aaff') +'</td></tr>';
+  }
+  t4 += '</table>'; r4.innerHTML = t4;
+
+  r.innerHTML = '';
+  r.appendChild(d0); r.appendChild(cd);
+  r.appendChild(r1); r.appendChild(r2);
+  r.appendChild(r3); r.appendChild(r4);
+}
+
+// ══════════════════════════════════════════════════
+// 雙頭龍 Mega：即時 EV 計算
+// ══════════════════════════════════════════════════
+function updateDragonMegaEV(){
+  var scs=parseList('dm_scs'), scsw=parseList('dm_scsw');
+  var sms=parseList('dm_sms'), smsw=parseList('dm_smsw');
+  var sds=parseList('dm_sds'), sdsw=parseList('dm_sdsw');
+  var bcs=parseList('dm_bcs'), bcsw=parseList('dm_bcsw');
+  var bms=parseList('dm_bms'), bmsw=parseList('dm_bmsw');
+  var bds=parseList('dm_bds'), bdsw=parseList('dm_bdsw');
+
+  if(scs.length!==scsw.length||scs.length===0) return;
+  if(sms.length!==smsw.length||sms.length===0) return;
+  if(sds.length!==sdsw.length||sds.length===0) return;
+  if(bcs.length!==bcsw.length||bcs.length===0) return;
+  if(bms.length!==bmsw.length||bms.length===0) return;
+  if(bds.length!==bdsw.length||bds.length===0) return;
+
+  var evSC=evf(scs,scsw), evSM=evf(sms,smsw), evSD=evf(sds,sdsw);
+  var evBC=evf(bcs,bcsw), evBM=evf(bms,bmsw), evBD=evf(bds,bdsw);
+  var sSub = evSC * evSM * evSD;
+  var bSub = evBC * evBM * evBD;
+  var tot  = sSub + bSub;
+
+  document.getElementById('dm_evSCnt').textContent  = evSC.toFixed(3);
+  document.getElementById('dm_evSMul').textContent  = evSM.toFixed(3);
+  document.getElementById('dm_evSDbl').textContent  = evSD.toFixed(3);
+  document.getElementById('dm_evSSub').textContent  = sSub.toFixed(2);
+  document.getElementById('dm_evBCnt').textContent  = evBC.toFixed(3);
+  document.getElementById('dm_evBMul').textContent  = evBM.toFixed(3);
+  document.getElementById('dm_evBDbl').textContent  = evBD.toFixed(3);
+  document.getElementById('dm_evBSub').textContent  = bSub.toFixed(2);
+  document.getElementById('dm_evTotal').textContent  = tot.toFixed(2);
+  document.getElementById('dm_evTotal2').textContent = tot.toFixed(2);
+}
+
+// ══════════════════════════════════════════════════
+// 雙頭龍 Mega：蒙地卡羅模擬
+// ══════════════════════════════════════════════════
+function validateDragonMega(){
+  var p=[
+    ['dm_scs','dm_scsw','小球顆數'],['dm_sms','dm_smsw','小球倍率'],['dm_sds','dm_sdsw','小球翻倍'],
+    ['dm_bcs','dm_bcsw','大球顆數'],['dm_bms','dm_bmsw','大球倍率'],['dm_bds','dm_bdsw','大球翻倍']
+  ];
+  for(var i=0;i<p.length;i++){
+    var v=parseList(p[i][0]),w=parseList(p[i][1]);
+    if(v.length===0||v.length!==w.length) return p[i][2]+'：數值與權重數量不一致';
+  }
+  return null;
+}
+
+function runSimDragonMega(){
+  var err=validateDragonMega();
+  if(err){ alert('❌ 參數錯誤：'+err); return; }
+
+  var N   = +document.getElementById('dm_simN').value;
+  var scs=parseList('dm_scs'), scsw=parseList('dm_scsw');
+  var sms=parseList('dm_sms'), smsw=parseList('dm_smsw');
+  var sds=parseList('dm_sds'), sdsw=parseList('dm_sdsw');
+  var bcs=parseList('dm_bcs'), bcsw=parseList('dm_bcsw');
+  var bms=parseList('dm_bms'), bmsw=parseList('dm_bmsw');
+  var bds=parseList('dm_bds'), bdsw=parseList('dm_bdsw');
+
+  // 理論 EV
+  var evSC=evf(scs,scsw),evSM=evf(sms,smsw),evSD=evf(sds,sdsw);
+  var evBC=evf(bcs,bcsw),evBM=evf(bms,bmsw),evBD=evf(bds,bdsw);
+  var sSub=evSC*evSM*evSD, bSub=evBC*evBM*evBD;
+  var theoryEV=sSub+bSub;
+
+  // 理論最大值（只算 weight > 0 的項目，排除掉設為 0 的欄位）
+  function maxW(vals,wts){ var m=-Infinity; for(var _i=0;_i<vals.length;_i++) if(wts[_i]>0&&vals[_i]>m) m=vals[_i]; return m<0?0:m; }
+  var maxPrize =
+    maxW(scs,scsw)*maxW(sms,smsw)*maxW(sds,sdsw)+
+    maxW(bcs,bcsw)*maxW(bms,bmsw)*maxW(bds,bdsw);
+
+  // 區間
+  var RANGE_DM=[
+    {l:'0 ~ 100x',      min:0,    max:100,   c:'#44aa66'},
+    {l:'100 ~ 300x',    min:100,  max:300,   c:'#3388aa'},
+    {l:'300 ~ 600x',    min:300,  max:600,   c:'#5566cc'},
+    {l:'600 ~ 1000x',   min:600,  max:1000,  c:'#9944cc'},
+    {l:'1000 ~ 3000x',  min:1000, max:3000,  c:'#cc6622'},
+    {l:'3000x 以上',    min:3000, max:999999, c:'#ffaa22'}
+  ];
+  var rc=[]; for(var ri=0;ri<RANGE_DM.length;ri++) rc.push(0);
+
+  var total=0,maxV=0,minV=999999,i,j;
+  var sCntDist={}, bCntDist={};
+
+  for(i=0;i<N;i++){
+    var scnt=wr(scs,scsw), bcnt=wr(bcs,bcsw);
+    var sum=0;
+    for(j=0;j<scnt;j++){ sum+=wr(sms,smsw)*wr(sds,sdsw); }
+    for(j=0;j<bcnt;j++){ sum+=wr(bms,bmsw)*wr(bds,bdsw); }
+
+    sCntDist[scnt]=(sCntDist[scnt]||0)+1;
+    bCntDist[bcnt]=(bCntDist[bcnt]||0)+1;
+
+    total+=sum;
+    if(sum>maxV) maxV=sum;
+    if(sum<minV) minV=sum;
+    for(var ki=0;ki<RANGE_DM.length;ki++){
+      if(sum>=RANGE_DM[ki].min && sum<RANGE_DM[ki].max){ rc[ki]++; break; }
+    }
+  }
+  if(maxV>=RANGE_DM[RANGE_DM.length-1].min) rc[RANGE_DM.length-1]++;
+
+  var avg=(total/N).toFixed(2);
+  var maxN_r=Math.max.apply(null,rc.map(function(v){return v||1;}));
+  var r=document.getElementById('dm_results');
+
+  // info bar
+  var d0=document.createElement('div'); d0.className='info-bar';
+  d0.innerHTML=
+    '理論總 EV：<strong style="color:#ffcc77">'+theoryEV.toFixed(2)+'x</strong>　'+
+    '小球貢獻：<strong style="color:#aaffaa">'+sSub.toFixed(2)+'x</strong>　'+
+    '大球貢獻：<strong style="color:#ffddaa">'+bSub.toFixed(2)+'x</strong>　'+
+    '理論最大：<strong>'+maxPrize.toLocaleString()+'x</strong>';
+
+  // 摘要卡片
+  var cd=document.createElement('div'); cd.className='cards';
+  cd.innerHTML=
+    '<div class="card"><div class="card-lbl">模擬平均回報</div><div class="card-val" style="color:#ffcc77">'+avg+'x</div><div class="card-sub">理論 '+theoryEV.toFixed(2)+'x</div></div>'+
+    '<div class="card"><div class="card-lbl">本次最高</div><div class="card-val">'+maxV.toLocaleString()+'x</div><div class="card-sub">理論上限 '+maxPrize.toLocaleString()+'x</div></div>'+
+    '<div class="card"><div class="card-lbl">本次最低</div><div class="card-val">'+minV+'x</div></div>'+
+    '<div class="card"><div class="card-lbl">模擬局數</div><div class="card-val">'+N.toLocaleString()+'</div></div>';
+
+  // 倍率區間
+  var r1=document.createElement('div'); r1.className='res-card';
+  var t1='<div class="res-title">開獎倍率區間分佈</div><table><tr><th>倍率區間</th><th>次數</th><th>機率</th><th>分佈</th></tr>';
+  for(var ri2=0;ri2<RANGE_DM.length;ri2++){
+    t1+='<tr><td style="font-weight:500">'+RANGE_DM[ri2].l+'</td><td>'+rc[ri2].toLocaleString()+'</td><td>'+pct(rc[ri2],N)+'</td><td>'+barHtml(rc[ri2],maxN_r,RANGE_DM[ri2].c)+'</td></tr>';
+  }
+  t1+='</table>'; r1.innerHTML=t1;
+
+  // 小球顆數分佈
+  var maxSCN=Math.max.apply(null,scs.map(function(c){return sCntDist[c]||1;}));
+  var scsTot=scsw.reduce(function(a,b){return a+b;},0);
+  var r2=document.createElement('div'); r2.className='res-card';
+  var t2='<div class="res-title">小球顆數分佈</div><table><tr><th>顆數</th><th>理論機率</th><th>模擬機率</th><th>次數</th><th>分佈</th></tr>';
+  for(var ci=0;ci<scs.length;ci++){
+    var cv=scs[ci],cc=sCntDist[cv]||0;
+    t2+='<tr><td style="font-weight:500">'+cv+' 顆</td><td>'+pct(scsw[ci],scsTot)+'</td><td>'+pct(cc,N)+'</td><td>'+cc.toLocaleString()+'</td><td>'+barHtml(cc,maxSCN,'#44cc88')+'</td></tr>';
+  }
+  t2+='</table>'; r2.innerHTML=t2;
+
+  // 大球顆數分佈
+  var maxBCN=Math.max.apply(null,bcs.map(function(c){return bCntDist[c]||1;}));
+  var bcsTot=bcsw.reduce(function(a,b){return a+b;},0);
+  var r3=document.createElement('div'); r3.className='res-card';
+  var t3='<div class="res-title">大球顆數分佈</div><table><tr><th>顆數</th><th>理論機率</th><th>模擬機率</th><th>次數</th><th>分佈</th></tr>';
+  for(var bi=0;bi<bcs.length;bi++){
+    var bv=bcs[bi],bc=bCntDist[bv]||0;
+    t3+='<tr><td style="font-weight:500">'+bv+' 顆</td><td>'+pct(bcsw[bi],bcsTot)+'</td><td>'+pct(bc,N)+'</td><td>'+bc.toLocaleString()+'</td><td>'+barHtml(bc,maxBCN,'#ffaa44')+'</td></tr>';
+  }
+  t3+='</table>'; r3.innerHTML=t3;
+
+  // 小球倍率 & 翻倍 理論機率
+  var smsTot=smsw.reduce(function(a,b){return a+b;},0);
+  var sdsTot=sdsw.reduce(function(a,b){return a+b;},0);
+  var r4=document.createElement('div'); r4.className='res-card';
+  var maxSMW=Math.max.apply(null,smsw);
+  var t4='<div class="res-title">小球倍率 / 翻倍 理論機率</div>';
+  t4+='<table><tr><th>倍率</th><th>機率</th><th>分佈</th></tr>';
+  for(var mi=0;mi<sms.length;mi++){
+    t4+='<tr><td>'+sms[mi]+'x</td><td>'+pct(smsw[mi],smsTot)+'</td><td>'+barHtml(smsw[mi],maxSMW,'#88aaff')+'</td></tr>';
+  }
+  t4+='</table>';
+  t4+='<div style="margin-top:10px;padding-top:8px;border-top:0.5px solid #222;">';
+  t4+='<table><tr><th>翻倍數</th><th>機率</th></tr>';
+  for(var di=0;di<sds.length;di++){
+    t4+='<tr><td>'+sds[di]+'x</td><td>'+pct(sdsw[di],sdsTot)+'</td></tr>';
+  }
+  t4+='</table></div>';
+  r4.innerHTML=t4;
+
+  // 大球倍率 & 翻倍 理論機率
+  var bmsTot=bmsw.reduce(function(a,b){return a+b;},0);
+  var bdsTot=bdsw.reduce(function(a,b){return a+b;},0);
+  var r5=document.createElement('div'); r5.className='res-card';
+  var maxBMW=Math.max.apply(null,bmsw);
+  var t5='<div class="res-title">大球倍率 / 翻倍 理論機率</div>';
+  t5+='<table><tr><th>倍率</th><th>機率</th><th>分佈</th></tr>';
+  for(var bmi=0;bmi<bms.length;bmi++){
+    t5+='<tr><td>'+bms[bmi]+'x</td><td>'+pct(bmsw[bmi],bmsTot)+'</td><td>'+barHtml(bmsw[bmi],maxBMW,'#ff7788')+'</td></tr>';
+  }
+  t5+='</table>';
+  t5+='<div style="margin-top:10px;padding-top:8px;border-top:0.5px solid #222;">';
+  t5+='<table><tr><th>翻倍數</th><th>機率</th></tr>';
+  for(var bdi=0;bdi<bds.length;bdi++){
+    t5+='<tr><td>'+bds[bdi]+'x</td><td>'+pct(bdsw[bdi],bdsTot)+'</td></tr>';
+  }
+  t5+='</table></div>';
+  r5.innerHTML=t5;
+
+  r.innerHTML='';
+  r.appendChild(d0); r.appendChild(cd);
+  r.appendChild(r1); r.appendChild(r2); r.appendChild(r3);
+  r.appendChild(r4); r.appendChild(r5);
 }
 </script>
 </body>

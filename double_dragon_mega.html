@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>雙頭龍表演模擬器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;overflow:hidden;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;}
+#wrap{position:relative;overflow:hidden;}
+#bgImg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+#gameCanvas{position:absolute;inset:0;}
+#hud{position:absolute;inset:0;pointer-events:none;}
+
+/* ── 頁籤 ── */
+#modeTabs{
+  position:absolute;top:8px;left:clamp(8px,1.5%,18px);
+  display:flex;gap:4px;pointer-events:all;
+}
+.modeTab{
+  padding:4px 16px;border-radius:14px;font-size:12px;font-weight:700;
+  cursor:pointer;letter-spacing:.06em;font-family:sans-serif;
+  border:1.5px solid #444;color:#888;background:#11110088;
+  transition:all .15s;
+}
+.modeTab.active{border-color:#cc8800;color:#ffcc44;background:#331a00cc;
+  text-shadow:0 0 8px #ffaa00;}
+.modeTab:not(.active):hover{border-color:#666;color:#bbb;}
+
+/* ── 狀態文字 ── */
+#statusEl{
+  position:absolute;top:1.8%;left:50%;transform:translateX(-50%);
+  font-size:clamp(11px,1.4vw,16px);color:#ffd080;
+  background:#00000066;padding:3px 14px;border-radius:20px;
+  white-space:nowrap;font-family:sans-serif;
+}
+#megaTag{
+  position:absolute;top:8px;right:clamp(80px,10%,120px);
+  padding:4px 18px;border-radius:20px;
+  border:1.5px solid #cc8800;background:#331a00cc;
+  color:#ffcc44;font-size:13px;font-family:sans-serif;
+  letter-spacing:.1em;font-weight:700;pointer-events:none;
+  text-shadow:0 0 8px #ffaa00;display:none;
+}
+
+/* ── 底部列 ── */
+.bb{
+  position:absolute;bottom:0;left:0;right:0;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:clamp(5px,1%,10px) clamp(10px,2%,20px);
+  background:#000000bb;pointer-events:all;
+}
+.cd{display:flex;align-items:center;gap:6px;color:#ffcc88;font-size:clamp(11px,1.3vw,15px);font-family:sans-serif;}
+.ci{
+  width:clamp(16px,2vw,22px);height:clamp(16px,2vw,22px);border-radius:50%;
+  background:#663300;border:2px solid #ffaa00;
+  display:flex;align-items:center;justify-content:center;
+  font-size:clamp(8px,1vw,11px);color:#ffeecc;font-weight:700;
+}
+.lv{font-size:clamp(9px,1vw,12px);color:#aa8855;font-family:sans-serif;}
+.br{display:flex;align-items:center;gap:6px;}
+.bl{font-size:clamp(9px,1vw,12px);color:#aa8855;font-family:sans-serif;}
+.bbn{
+  width:clamp(18px,2.2vw,26px);height:clamp(18px,2.2vw,26px);border-radius:50%;
+  background:#221100;border:1px solid #885522;color:#ffcc88;
+  font-size:clamp(12px,1.6vw,18px);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;pointer-events:all;
+}
+.bv{font-size:clamp(12px,1.5vw,16px);font-weight:600;color:#ffcc88;min-width:36px;text-align:center;font-family:sans-serif;}
+.ab{
+  position:absolute;right:clamp(6px,1.2%,14px);top:50%;transform:translateY(-50%);
+  width:clamp(44px,6.5vw,70px);height:clamp(44px,6.5vw,70px);border-radius:50%;
+  background:#331a00ec;border:3px solid #ff9900;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;pointer-events:all;
+}
+#winEl{display:none;font-size:clamp(13px,1.8vw,18px);font-weight:600;color:#ffcc44;margin-left:8px;font-family:sans-serif;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <img id="bgImg" src="background3.png" alt="">
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="hud">
+    <!-- 頁籤 -->
+    <div id="modeTabs">
+      <div class="modeTab active" id="tab-normal" onclick="switchMode('normal')">⚔ 一般</div>
+      <div class="modeTab" id="tab-mega"   onclick="switchMode('mega')">⚔ MEGA</div>
+    </div>
+
+    <div id="megaTag">⚔ MEGA</div>
+    <div id="statusEl"></div>
+
+    <!-- ── 嘴巴位置校準按鈕 ── -->
+    <div id="calibBtn" onclick="toggleCalib()" title="校準嘴巴位置"
+      style="position:absolute;top:8px;right:clamp(8px,1.5%,18px);
+        width:28px;height:28px;border-radius:50%;
+        background:#00000088;border:1.5px solid #664422;
+        display:flex;align-items:center;justify-content:center;
+        cursor:pointer;pointer-events:all;font-size:15px;
+        transition:border-color .15s;">🎯</div>
+
+    <!-- ── 校準面板 ── -->
+    <div id="calibPanel" style="
+      display:none;position:absolute;top:42px;right:clamp(8px,1.5%,18px);
+      background:#0c0800f0;border:1.5px solid #aa6622;border-radius:10px;
+      padding:12px 14px;font-family:sans-serif;font-size:12px;color:#ffcc88;
+      pointer-events:all;z-index:200;width:246px;line-height:1.9;
+      box-shadow:0 4px 24px #0008;">
+      <div style="font-size:13px;font-weight:700;color:#ffee44;margin-bottom:4px;">
+        🐉 MEGA 嘴巴位置校準
+      </div>
+      <div style="font-size:11px;color:#aa8855;margin-bottom:10px;">
+        調整後按「複製座標」貼入程式碼
+      </div>
+      <!-- 左嘴 -->
+      <div style="color:#ff9966;font-weight:700;margin-bottom:2px;">🔥 左嘴（火球發射點）</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <span style="width:14px">X</span>
+        <input type="range" id="mfxR" min="0" max="1600" step="1"
+          style="flex:1;accent-color:#ff8844;">
+        <input type="number" id="mfxN" min="0" max="1600" step="1"
+          style="width:52px;background:#1a0e00;color:#ffcc88;border:1px solid #664422;
+                 border-radius:4px;padding:2px 4px;font-size:12px;">
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+        <span style="width:14px">Y</span>
+        <input type="range" id="mfyR" min="200" max="640" step="1"
+          style="flex:1;accent-color:#ff8844;">
+        <input type="number" id="mfyN" min="200" max="640" step="1"
+          style="width:52px;background:#1a0e00;color:#ffcc88;border:1px solid #664422;
+                 border-radius:4px;padding:2px 4px;font-size:12px;">
+      </div>
+      <!-- 右嘴 -->
+      <div style="color:#44ff99;font-weight:700;margin-bottom:2px;">💨 右嘴（乘倍發射點）</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <span style="width:14px">X</span>
+        <input type="range" id="mgxR" min="0" max="1600" step="1"
+          style="flex:1;accent-color:#44ff88;">
+        <input type="number" id="mgxN" min="0" max="1600" step="1"
+          style="width:52px;background:#001a0a;color:#88ffcc;border:1px solid #226644;
+                 border-radius:4px;padding:2px 4px;font-size:12px;">
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
+        <span style="width:14px">Y</span>
+        <input type="range" id="mgyR" min="200" max="640" step="1"
+          style="flex:1;accent-color:#44ff88;">
+        <input type="number" id="mgyN" min="200" max="640" step="1"
+          style="width:52px;background:#001a0a;color:#88ffcc;border:1px solid #226644;
+                 border-radius:4px;padding:2px 4px;font-size:12px;">
+      </div>
+      <button onclick="copyCoords()"
+        style="width:100%;padding:5px;background:#2a1400;border:1px solid #aa6622;
+               border-radius:6px;color:#ffcc88;cursor:pointer;font-size:12px;
+               font-family:sans-serif;">
+        📋 複製座標（貼入程式碼）
+      </button>
+      <div id="calibCopied" style="font-size:11px;color:#88ff88;height:16px;
+        margin-top:5px;text-align:center;"></div>
+    </div>
+
+    <!-- 獎圈 -->
+    <div id="prizeWrap" style="
+      position:absolute;inset:0;display:flex;visibility:hidden;
+      align-items:center;justify-content:flex-end;flex-direction:column;
+      gap:8px;pointer-events:none;opacity:0;transition:opacity .4s;padding-bottom:9%;">
+      <img src="effect/prize_circle2.png" style="width:clamp(160px,20vw,260px);height:auto;">
+      <div id="prizeAmtEl" style="
+        color:#ffcc44;font-size:clamp(20px,3vw,38px);font-weight:700;
+        text-shadow:0 2px 12px #ff8800,0 1px 0 #663300;
+        font-family:sans-serif;letter-spacing:.04em;"></div>
+    </div>
+
+    <!-- 底部列 -->
+    <div class="bb">
+      <span class="lv">LV.C3065 SU</span>
+      <div class="cd">
+        <div class="ci" id="ciEl">🐉</div>
+        <span>999,999,999</span>
+        <span id="winEl"></span>
+      </div>
+      <div class="br">
+        <span class="bl">BET</span>
+        <button class="bbn" onclick="chgBet(-1)">-</button>
+        <span class="bv" id="bval">999</span>
+        <button class="bbn" onclick="chgBet(1)">+</button>
+      </div>
+    </div>
+
+    <!-- 右側按鈕 -->
+    <div style="position:absolute;right:clamp(6px,1.2%,14px);top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:all;">
+      <div class="ab" id="abtn" onclick="shoot()">
+        <svg width="62%" viewBox="0 0 38 38" fill="none" stroke="#ffcc88" stroke-linecap="round">
+          <circle cx="19" cy="19" r="14" stroke-width="1.8" opacity=".6"/>
+          <circle cx="19" cy="19" r="5.5" stroke-width="2.2"/>
+          <line x1="19" y1="0"  x2="19" y2="10"  stroke-width="2.2"/>
+          <line x1="19" y1="28" x2="19" y2="38"  stroke-width="2.2"/>
+          <line x1="0"  y1="19" x2="10" y2="19"  stroke-width="2.2"/>
+          <line x1="28" y1="19" x2="38" y2="19"  stroke-width="2.2"/>
+        </svg>
+      </div>
+      <div onclick="resetGame()" title="重置" style="
+        width:clamp(26px,3.5vw,38px);height:clamp(26px,3.5vw,38px);border-radius:50%;
+        background:#00000088;border:1.5px solid #664422;
+        display:flex;align-items:center;justify-content:center;cursor:pointer;">
+        <svg width="55%" viewBox="0 0 24 24" fill="none" stroke="#aa7744" stroke-width="1.8" stroke-linecap="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// 基礎常數
+// ═══════════════════════════════════════════════════
+const BASE_W = 1600, BASE_H = 640;
+const COIN_FPS = 15, COIN_TOTAL = 15;
+
+// ── 一般模式：龍嘴位置 (22/23.png 置中 596×418) ──
+// 圖片繪製於 dx=502, dy=91；★ 可調整
+const N_FIRE_L_X = 590,  N_FIRE_L_Y = 267;
+const N_FIRE_R_X = 1009, N_FIRE_R_Y = 267;
+const N_GAS_L_X  = 590,  N_GAS_L_Y  = 267;
+const N_GAS_R_X  = 1009, N_GAS_R_Y  = 267;
+
+// ── MEGA 模式：砲臺 (24.png = 768×325) ──
+const CANNON_W   = 768, CANNON_H = 325;
+const CANNON_DX  = (BASE_W - CANNON_W) / 2;   // 416
+const CANNON_DY  = BASE_H - CANNON_H - 8;      // 307
+// 砲臺龍嘴 ★ 用校準面板即時調整，或在此直接改數字
+let M_FIRE_X   = CANNON_DX + 350;   // = 766  左嘴（火球）
+let M_FIRE_Y   = CANNON_DY + 100;   // = 407
+let M_GAS_X    = CANNON_DX + 450;   // = 866  右嘴（乘倍）
+let M_GAS_Y    = CANNON_DY + 100;   // = 407
+
+// ── 散落區域 ──
+const SCATTER_CX = 800, SCATTER_CY_N = 280, SCATTER_CY_M = 195;
+const SCATTER_MIN = 140, SCATTER_MAX = 370, BALL_MIN_SEP = 105;
+
+// ── 時間常數 (ms) ──
+const SHAKE_DUR          = 1500;
+const SHAKE_AMP          = 12;
+const N_CHANGE_DUR       = 500;
+const SHRINK_DUR         = 700;
+const CANNON_APPEAR_DUR  = 650;
+const FIRE_BALL_FLY      = 730;
+const FIRE_INTERVAL      = 460;
+const FIRE_WAIT_PAD      = 380;
+const GAS_BALL_FLY       = 580;
+const GAS_INTERVAL       = 440;
+const GAS_WAVE_PAUSE     = 1350;
+const GAS_CHARGE_DUR     =  900;   // ★ 集氣持續時間 (ms)
+const EXPLODE_DUR        = 520;
+const REVEAL_POP_DUR     = 400;
+const MUZZLE_DUR         = 300;
+const PRIZE_SHOW_DUR     =  700;   // ★ 得獎倍率停留後才開始收集 (ms)
+const COLLECT_COUNT_DUR  = 1800;   // ★ 跑分動畫時間 (ms)
+const COLLECT_OX         = -100;   // ★ 收集面板 X 偏移（相對 ciEl 中心）
+const COLLECT_OY         =  -80;   // ★ 收集面板 Y 偏移
+
+// ── 球半徑 ──
+const N_FIRE_R  = 34;
+const N_GAS_R   = 22;
+const M_FIRE_R_S = 28;
+const M_FIRE_R_B = 40;
+const M_GAS_R    = 20;
+
+// ═══════════════════════════════════════════════════
+// 數值設定
+// ═══════════════════════════════════════════════════
+// 一般模式（佔位值，可替換）
+const N_CNT_VALS = [2,3,4,5],   N_CNT_WTS = [25,10,8,3];
+const N_MUL_VALS = [40,50,60],  N_MUL_WTS = [35,20,10];
+const N_DBL_VALS = [1,2,3,4],   N_DBL_WTS = [30,15,5,1];
+
+// MEGA 模式 - 小球
+const S_CNT_VALS = [3,4,5],     S_CNT_WTS = [20,15,8];
+const S_MUL_VALS = [30,40,50],  S_MUL_WTS = [35,20,10];
+const S_DBL_VALS = [1,2,4],     S_DBL_WTS = [38,15,1];
+
+// MEGA 模式 - 大球
+const B_CNT_VALS = [1,2,3],       B_CNT_WTS = [18,30,15];
+const B_MUL_VALS = [60,80,100],   B_MUL_WTS = [30,20,8];
+const B_DBL_VALS = [1,3,6,9],     B_DBL_WTS = [48,20,5,1];
+
+// ═══════════════════════════════════════════════════
+// MEGA 分波揭露：翻倍數 → 階段陣列
+// ═══════════════════════════════════════════════════
+function getStages(dbl) {
+  if (dbl === 1) return [];          // x1 倍：不需要吐乘倍球，球保持空著
+  if (dbl <= 3)  return [dbl];
+  if (dbl === 4) return [2, 2];
+  if (dbl === 6) return [2, 3];
+  if (dbl === 9) return [3, 3];
+  return [dbl];
+}
+
+// ═══════════════════════════════════════════════════
+// 共用狀態
+// ═══════════════════════════════════════════════════
+let mode  = 'normal';   // 'normal' | 'mega'
+let phase = 'idle';
+let shots = 0, busy = false, bet = 999;
+let allCoins = [], scale = 1;
+let canvas, ctx, wrap;
+
+// ── 一般模式狀態 ──
+let n_shakeT  = -1, n_changeT = -1;
+let n_fireIdx = 0,  n_fireT   = -1;
+let n_gasIdx  = 0,  n_gasT    = -1;
+let n_lastLandT = -1;
+let n_dragonForm = 21;   // 21=idle/shake, 22=fire, 23=gas
+let n_fireBalls  = [];
+let n_gasBalls   = [];
+
+// ── MEGA 模式狀態 ──
+let m_shakeT       = -1;
+let m_shrinkT      = -1;
+let m_cannonT      = -1;
+let m_fireIdx      = 0,  m_fireT       = -1;
+let m_gasWave      = 0,  m_gasIdx      = 0, m_gasT = -1;
+let m_gasWavePauseT = -1;
+let m_gasChargeT    = -1;   // 集氣開始時間
+let m_lastLandT    = -1;
+let m_maxGasWaves  = 0;
+let m_dragonScale  = 1;
+let m_cannonScale  = 0;
+let m_fireBalls    = [];
+let m_gasBallsActive = [];
+let m_muzzleFlashes  = [];
+let m_popOverlays    = [];   // ×N 乘倍彈出特效
+let m_allExplodeT    = -1;   // 全體爆炸時間點
+let m_prizeLabels    = false; // 是否顯示各球得獎金額
+let m_collectVisible = false; // 收集面板是否顯示
+let m_collectT       = -1;   // 跑分開始時間
+let m_collectTarget  = 0;    // 跑分目標金額
+let m_collectShards  = [];   // 飛向面板的發光彈
+
+// 圖片
+const imgs = {};
+let coinImgs = [];
+
+// ═══════════════════════════════════════════════════
+// 初始化
+// ═══════════════════════════════════════════════════
+function loadImages() {
+  [21, 22, 23, 24].forEach(n => {
+    const img = new Image();
+    img.src = 'dragon/' + n + '.png';
+    imgs[n] = img;
+  });
+  const cf = new Image(); cf.src = 'UI/double_frame.png'; imgs['collectFrame'] = cf;
+  for (let i = 1; i <= COIN_TOTAL; i++) {
+    const img = new Image();
+    img.src = 'coins/C' + String(i).padStart(2,'0') + '.png';
+    coinImgs.push(img);
+  }
+}
+
+function resize() {
+  const s = Math.min(window.innerWidth / BASE_W, window.innerHeight / BASE_H);
+  scale = s;
+  wrap.style.width  = BASE_W * s + 'px';
+  wrap.style.height = BASE_H * s + 'px';
+  canvas.width  = BASE_W; canvas.height = BASE_H;
+  canvas.style.width  = BASE_W * s + 'px';
+  canvas.style.height = BASE_H * s + 'px';
+}
+
+// ═══════════════════════════════════════════════════
+// 工具
+// ═══════════════════════════════════════════════════
+function wr(v, w) {
+  let total = 0;
+  for (let i = 0; i < w.length; i++) total += w[i];
+  let r = Math.random() * total;
+  for (let i = 0; i < v.length; i++) { r -= w[i]; if (r <= 0) return v[i]; }
+  return v[v.length - 1];
+}
+function eoc(t) { return 1 - Math.pow(1 - t, 3); }
+function setSt(m) { document.getElementById('statusEl').textContent = m; }
+function chgBet(d) {
+  const vs = [10,20,30,50,100,200,500,999];
+  let i = vs.indexOf(bet); if (i < 0) i = vs.length - 1;
+  i = Math.max(0, Math.min(vs.length - 1, i + d));
+  bet = vs[i]; document.getElementById('bval').textContent = bet;
+}
+
+function findPos(placed, MARGIN, CY) {
+  // Mega 模式：球必須落在砲臺圖上方 (Y < CANNON_DY)，預留 30px 安全距離
+  const MAX_Y = mode === 'mega' ? CANNON_DY - 30 : BASE_H - 180;
+  for (let att = 0; att < 60; att++) {
+    const ang  = Math.random() * Math.PI * 2;
+    const dist = SCATTER_MIN + Math.random() * (SCATTER_MAX - SCATTER_MIN);
+    const tx   = Math.max(MARGIN, Math.min(BASE_W - MARGIN, SCATTER_CX + Math.cos(ang) * dist));
+    const ty   = Math.max(55, Math.min(MAX_Y, CY + Math.sin(ang) * dist));
+    if (placed.every(p => Math.hypot(tx - p.tx, ty - p.ty) >= BALL_MIN_SEP))
+      return { tx, ty };
+  }
+  const ang = Math.random() * Math.PI * 2;
+  return {
+    tx: Math.max(80, Math.min(BASE_W - 80, SCATTER_CX + Math.cos(ang) * 200)),
+    ty: Math.max(55, Math.min(MAX_Y, CY + Math.sin(ang) * 200))
+  };
+}
+
+// ═══════════════════════════════════════════════════
+// 頁籤切換
+// ═══════════════════════════════════════════════════
+function switchMode(m) {
+  if (mode === m) return;
+  mode = m;
+  resetGame();
+  document.getElementById('tab-normal').classList.toggle('active', m === 'normal');
+  document.getElementById('tab-mega').classList.toggle('active', m === 'mega');
+  document.getElementById('megaTag').style.display = m === 'mega' ? 'block' : 'none';
+}
+
+// ═══════════════════════════════════════════════════
+// ── 一般模式：建立球 ──
+// ═══════════════════════════════════════════════════
+function buildBallsNormal() {
+  n_fireBalls = [];
+  n_gasBalls  = [];
+  const placed = [];
+  const n = wr(N_CNT_VALS, N_CNT_WTS);
+  for (let i = 0; i < n; i++) {
+    const mul = wr(N_MUL_VALS, N_MUL_WTS);
+    const dbl = wr(N_DBL_VALS, N_DBL_WTS);
+    const sx  = i % 2 === 0 ? N_FIRE_L_X : N_FIRE_R_X;
+    const sy  = i % 2 === 0 ? N_FIRE_L_Y : N_FIRE_R_Y;
+    const pos = findPos(placed, 80, SCATTER_CY_N);
+    n_fireBalls.push({
+      sx, sy, x: sx, y: sy,
+      tx: pos.tx, ty: pos.ty,
+      r: N_FIRE_R, baseVal: mul, dblVal: dbl, finalVal: mul * dbl,
+      alpha: 1, t0: -1, arrived: false,
+      exploded: false, explodeT: -1, popT: -1
+    });
+    placed.push(pos);
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// ── 一般模式：Phase 更新 ──
+// ═══════════════════════════════════════════════════
+function updatePhaseNormal(now) {
+
+  if (phase === 'shake') {
+    if (now - n_shakeT >= SHAKE_DUR) {
+      n_dragonForm = 22;
+      phase = 'fire_change';
+      n_changeT = now;
+      setSt('');
+    }
+  }
+
+  if (phase === 'fire_change') {
+    if (now - n_changeT >= N_CHANGE_DUR) {
+      phase = 'firing';
+      n_fireIdx = 0; n_fireT = now;
+    }
+  }
+
+  if (phase === 'firing') {
+    if (n_fireIdx < n_fireBalls.length) {
+      if (now - n_fireT >= FIRE_INTERVAL) {
+        n_fireBalls[n_fireIdx].t0 = now;
+        n_fireIdx++;
+        n_fireT = now;
+      }
+    } else {
+      phase = 'fire_wait';
+    }
+  }
+
+  if (phase === 'fire_wait') {
+    if (n_fireBalls.every(b => b.arrived)) {
+      if (n_lastLandT < 0) n_lastLandT = now;
+      if (now - n_lastLandT >= FIRE_WAIT_PAD) {
+        n_dragonForm = 23;
+        phase = 'gas_change';
+        n_changeT = now;
+        setSt('');
+      }
+    }
+  }
+
+  if (phase === 'gas_change') {
+    if (now - n_changeT >= N_CHANGE_DUR) {
+      // 建立毒氣球
+      n_gasBalls = n_fireBalls.map((fb, idx) => ({
+        sx: idx % 2 === 0 ? N_GAS_L_X : N_GAS_R_X,
+        sy: idx % 2 === 0 ? N_GAS_L_Y : N_GAS_R_Y,
+        x:  idx % 2 === 0 ? N_GAS_L_X : N_GAS_R_X,
+        y:  idx % 2 === 0 ? N_GAS_L_Y : N_GAS_R_Y,
+        tx: fb.tx, ty: fb.ty,
+        targetIdx: idx,
+        r: N_GAS_R, alpha: 1, t0: -1, arrived: false
+      }));
+      phase = 'gassing';
+      n_gasIdx = 0; n_gasT = now;
+    }
+  }
+
+  if (phase === 'gassing') {
+    if (n_gasIdx < n_gasBalls.length) {
+      if (now - n_gasT >= GAS_INTERVAL) {
+        n_gasBalls[n_gasIdx].t0 = now;
+        n_gasIdx++;
+        n_gasT = now;
+      }
+    } else {
+      phase = 'gas_wait';
+    }
+  }
+
+  if (phase === 'gas_wait') {
+    const allHit     = n_gasBalls.every(g => g.arrived);
+    const boomDone   = n_fireBalls.every(b =>
+      !b.exploded || (now - b.explodeT > EXPLODE_DUR + 200));
+    if (allHit && boomDone) {
+      n_fireBalls.forEach(fb => spawnCoins(fb));
+      const totalVal = n_fireBalls.reduce((s, b) => s + b.finalVal, 0);
+      phase = 'collecting';
+      collectCoins(() => {
+        showPrizeCircle(totalVal);
+        phase = 'done';
+        busy  = false;
+        document.getElementById('abtn').style.opacity = '1';
+      });
+    }
+  }
+
+  // ── 物理 ──
+  n_fireBalls.forEach(b => {
+    if (b.t0 < 0 || b.arrived) return;
+    const t = Math.min((now - b.t0) / FIRE_BALL_FLY, 1);
+    const et = eoc(t);
+    b.x = b.sx + (b.tx - b.sx) * et;
+    b.y = b.sy + (b.ty - b.sy) * et;
+    if (t >= 1) { b.arrived = true; b.x = b.tx; b.y = b.ty; }
+  });
+
+  n_gasBalls.forEach(g => {
+    if (g.t0 < 0 || g.arrived) return;
+    const t = Math.min((now - g.t0) / GAS_BALL_FLY, 1);
+    const et = eoc(t);
+    g.x = g.sx + (g.tx - g.sx) * et;
+    g.y = g.sy + (g.ty - g.sy) * et;
+    if (t >= 1) {
+      g.arrived = true; g.x = g.tx; g.y = g.ty;
+      const fb = n_fireBalls[g.targetIdx];
+      if (fb && !fb.exploded) {
+        fb.exploded = true; fb.explodeT = now; fb.popT = now;
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// ── MEGA 模式：建立球 ──
+// ═══════════════════════════════════════════════════
+function buildBallsMega() {
+  m_fireBalls = [];
+  const placed = [];
+  const MARGIN = 80;
+
+  const sCnt = wr(S_CNT_VALS, S_CNT_WTS);
+  const bCnt = wr(B_CNT_VALS, B_CNT_WTS);
+
+  for (let i = 0; i < sCnt; i++) {
+    const mul = wr(S_MUL_VALS, S_MUL_WTS);
+    const dbl = wr(S_DBL_VALS, S_DBL_WTS);
+    const pos = findPos(placed, MARGIN, SCATTER_CY_M);
+    m_fireBalls.push({
+      sx: M_FIRE_X, sy: M_FIRE_Y, x: M_FIRE_X, y: M_FIRE_Y,
+      tx: pos.tx, ty: pos.ty,
+      r: M_FIRE_R_S, type: 'small',
+      baseVal: mul, dblVal: dbl, finalVal: mul * dbl,
+      stages: getStages(dbl), stagesApplied: 0,
+      currentDisplayVal: mul, isPartial: false,
+      alpha: 1, t0: -1,
+      arrived: false, exploded: false, explodeT: -1, popT: -1
+    });
+    placed.push(pos);
+  }
+  for (let i = 0; i < bCnt; i++) {
+    const mul = wr(B_MUL_VALS, B_MUL_WTS);
+    const dbl = wr(B_DBL_VALS, B_DBL_WTS);
+    const pos = findPos(placed, MARGIN, SCATTER_CY_M);
+    m_fireBalls.push({
+      sx: M_FIRE_X, sy: M_FIRE_Y, x: M_FIRE_X, y: M_FIRE_Y,
+      tx: pos.tx, ty: pos.ty,
+      r: M_FIRE_R_B, type: 'big',
+      baseVal: mul, dblVal: dbl, finalVal: mul * dbl,
+      stages: getStages(dbl), stagesApplied: 0,
+      currentDisplayVal: mul, isPartial: false,
+      alpha: 1, t0: -1,
+      arrived: false, exploded: false, explodeT: -1, popT: -1
+    });
+    placed.push(pos);
+  }
+  m_maxGasWaves = 0;
+  m_fireBalls.forEach(fb => {
+    if (fb.stages.length > m_maxGasWaves) m_maxGasWaves = fb.stages.length;
+  });
+}
+
+function startGasWave(wave) {
+  m_gasBallsActive = [];
+  m_fireBalls.forEach((fb, idx) => {
+    if (!fb.arrived) return;
+    if (fb.stages.length > wave) {
+      m_gasBallsActive.push({
+        sx: M_GAS_X, sy: M_GAS_Y, x: M_GAS_X, y: M_GAS_Y,
+        tx: fb.tx, ty: fb.ty,
+        targetIdx: idx, wave,
+        r: M_GAS_R, alpha: 1, t0: -1, arrived: false
+      });
+    }
+  });
+  m_gasIdx = 0; m_gasT = Date.now();
+}
+
+function applyStage(idx, wave, now) {
+  const fb = m_fireBalls[idx];
+  if (!fb) return;
+
+  const stageN = fb.stages[wave];              // 這次的 ×N
+  fb.stagesApplied = wave + 1;
+
+  // 計算累積倍率
+  let cum = 1;
+  for (let s = 0; s <= wave; s++) cum *= fb.stages[s];
+  fb.currentDisplayVal = fb.baseVal * cum;
+
+  fb.isPartial = (wave < fb.stages.length - 1);
+  fb.popT = now;
+  if (!fb.isPartial) { fb.exploded = true; fb.explodeT = now; }
+
+  // 推入 ×N 彈出特效（顯示在火球上方）
+  m_popOverlays.push({
+    x:  fb.tx,
+    y:  fb.ty,
+    text: '×' + stageN,
+    t0:  now,
+    r:   fb.r,
+    isFinal: !fb.isPartial
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// ── MEGA 模式：Phase 更新 ──
+// ═══════════════════════════════════════════════════
+function updatePhaseMega(now) {
+
+  if (phase === 'shake') {
+    if (now - m_shakeT >= SHAKE_DUR) {
+      phase = 'shrink'; m_shrinkT = now; setSt('');
+    }
+  }
+
+  if (phase === 'shrink') {
+    const t = Math.min((now - m_shrinkT) / SHRINK_DUR, 1);
+    m_dragonScale = 1 - eoc(t);
+    if (t >= 1) {
+      m_dragonScale = 0;
+      phase = 'cannon_appear'; m_cannonT = now; m_cannonScale = 0;
+    }
+  }
+
+  if (phase === 'cannon_appear') {
+    const t = Math.min((now - m_cannonT) / CANNON_APPEAR_DUR, 1);
+    m_cannonScale = eoc(t);
+    if (t >= 1) {
+      m_cannonScale = 1;
+      phase = 'firing'; m_fireIdx = 0; m_fireT = now; setSt('');
+    }
+  }
+
+  if (phase === 'firing') {
+    if (m_fireIdx < m_fireBalls.length) {
+      if (now - m_fireT >= FIRE_INTERVAL) {
+        m_fireBalls[m_fireIdx].t0 = now;
+        m_muzzleFlashes.push({ x: M_FIRE_X, y: M_FIRE_Y, t0: now, col: '255,150,40' });
+        m_fireIdx++; m_fireT = now;
+      }
+    } else {
+      phase = 'fire_wait';
+    }
+  }
+
+  if (phase === 'fire_wait') {
+    if (m_fireBalls.every(b => b.arrived)) {
+      if (m_lastLandT < 0) m_lastLandT = now;
+      if (now - m_lastLandT >= FIRE_WAIT_PAD) {
+        m_gasWave = 0;
+        // 先集氣，再吐乘倍球
+        phase = 'gas_charge'; m_gasChargeT = now; setSt('集氣中...');
+      }
+    }
+  }
+
+  if (phase === 'gas_charge') {
+    if (now - m_gasChargeT >= GAS_CHARGE_DUR) {
+      startGasWave(m_gasWave);
+      phase = 'gassing'; setSt('');
+    }
+  }
+
+  if (phase === 'gassing') {
+    if (m_gasIdx < m_gasBallsActive.length) {
+      if (now - m_gasT >= GAS_INTERVAL) {
+        m_gasBallsActive[m_gasIdx].t0 = now;
+        m_muzzleFlashes.push({ x: M_GAS_X, y: M_GAS_Y, t0: now, col: '60,255,110' });
+        m_gasIdx++; m_gasT = now;
+      }
+    } else {
+      if (m_gasBallsActive.every(g => g.arrived)) {
+        const more = m_fireBalls.some(fb => fb.stages.length > m_gasWave + 1);
+        if (more) {
+          phase = 'gas_wave_pause'; m_gasWavePauseT = now; setSt('還有更多...');
+        } else {
+          phase = 'gas_settle'; m_gasWavePauseT = now; setSt('');
+        }
+      }
+    }
+  }
+
+  if (phase === 'gas_wave_pause') {
+    if (now - m_gasWavePauseT >= GAS_WAVE_PAUSE) {
+      m_gasWave++;
+      // 第二波前也先集氣
+      phase = 'gas_charge'; m_gasChargeT = now; setSt('還有更多...');
+    }
+  }
+
+  if (phase === 'gas_settle') {
+    // 延後 1200ms（原 700ms + 額外 500ms）讓所有球同時爆炸
+    if (m_allExplodeT < 0 && now - m_gasWavePauseT >= 1200) {
+      m_fireBalls.forEach(fb => {
+        if (fb.arrived && !fb.exploded) { fb.exploded = true; fb.explodeT = now; }
+      });
+      m_allExplodeT = now;
+    }
+    if (m_allExplodeT < 0) return;
+
+    const boomDone = m_fireBalls.every(b =>
+      !b.exploded || (now - b.explodeT > EXPLODE_DUR + 150));
+
+    if (boomDone) {
+      const totalVal  = m_fireBalls.reduce((s, b) => s + b.finalVal, 0);
+      m_collectTarget = totalVal;   // 存倍率（不是金幣）
+      m_prizeLabels   = true;       // 各球位置顯示倍率
+      phase = 'collecting';
+
+      // PRIZE_SHOW_DUR 後顯示面板、發光彈飛入、跑分
+      setTimeout(() => {
+        m_collectVisible = true;
+        m_collectT       = Date.now();
+        spawnShards();   // 各球位置的倍率彈飛向面板
+        // 跑分結束後面板消失，換算金幣顯示獎圈
+        setTimeout(() => {
+          m_collectVisible = false;
+          m_prizeLabels    = false;
+          showFinalPrizeMega(totalVal * bet);   // 獎圈才換算成金幣
+          phase = 'done'; busy = false;
+          document.getElementById('abtn').style.opacity = '1';
+        }, COLLECT_COUNT_DUR + 400);
+      }, PRIZE_SHOW_DUR);
+    }
+  }
+
+  // ── 物理 ──
+  m_fireBalls.forEach(b => {
+    if (b.t0 < 0 || b.arrived) return;
+    const t  = Math.min((now - b.t0) / FIRE_BALL_FLY, 1);
+    const et = eoc(t);
+    b.x = b.sx + (b.tx - b.sx) * et;
+    b.y = b.sy + (b.ty - b.sy) * et;   // 直線飛行，無拋物線
+    if (t >= 1) { b.arrived = true; b.x = b.tx; b.y = b.ty; }
+  });
+
+  m_gasBallsActive.forEach(g => {
+    if (g.t0 < 0 || g.arrived) return;
+    const t  = Math.min((now - g.t0) / GAS_BALL_FLY, 1);
+    const et = eoc(t);
+    g.x = g.sx + (g.tx - g.sx) * et;
+    g.y = g.sy + (g.ty - g.sy) * et;
+    if (t >= 1) {
+      g.arrived = true; g.x = g.tx; g.y = g.ty;
+      applyStage(g.targetIdx, g.wave, now);
+    }
+  });
+
+  m_muzzleFlashes = m_muzzleFlashes.filter(f => now - f.t0 < MUZZLE_DUR);
+  m_popOverlays   = m_popOverlays.filter(po => now - po.t0 < 1100);
+}
+
+// ═══════════════════════════════════════════════════
+// 主 Phase 分派
+// ═══════════════════════════════════════════════════
+function updatePhase(now) {
+  if (mode === 'normal') updatePhaseNormal(now);
+  else                   updatePhaseMega(now);
+}
+
+// ═══════════════════════════════════════════════════
+// ── 繪製：一般模式龍 ──
+// ═══════════════════════════════════════════════════
+function drawDragonNormal(now) {
+  const img = imgs[n_dragonForm];
+  if (!img || !img.complete || !img.naturalWidth) return;
+
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const drawW = Math.min(iw, BASE_W * 0.82);
+  const drawH = ih * (drawW / iw);
+  const dx = (BASE_W - drawW) / 2;
+  const dy = (BASE_H - drawH) / 2 - 20;
+
+  let sx = 0;
+  if (phase === 'shake') {
+    const t = (now - n_shakeT) / SHAKE_DUR;
+    sx = Math.sin(t * Math.PI * 14) * SHAKE_AMP * (1 - t * 0.5);
+  }
+  ctx.drawImage(img, dx + sx, dy, drawW, drawH);
+}
+
+// ═══════════════════════════════════════════════════
+// ── 繪製：MEGA 模式龍 + 砲臺 ──
+// ═══════════════════════════════════════════════════
+function drawDragonMega(now) {
+  // 21.png 縮小消失
+  if (m_dragonScale > 0.01) {
+    const img = imgs[21];
+    if (img && img.complete && img.naturalWidth) {
+      const iw = img.naturalWidth, ih = img.naturalHeight;
+      const drawW = Math.min(iw, BASE_W * 0.74);
+      const drawH = ih * (drawW / iw);
+      const cx = BASE_W / 2;
+      const cy = BASE_H / 2 - 20;
+      let sx = 0;
+      if (phase === 'shake') {
+        const t = (now - m_shakeT) / SHAKE_DUR;
+        sx = Math.sin(t * Math.PI * 14) * SHAKE_AMP * (1 - t * 0.5);
+      }
+      ctx.save();
+      ctx.globalAlpha = m_dragonScale;
+      ctx.translate(cx + sx, cy);
+      ctx.scale(m_dragonScale, m_dragonScale);
+      ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+      ctx.restore();
+    }
+  }
+
+  // 24.png 砲臺縮放入場
+  if (m_cannonScale > 0.01) {
+    const img = imgs[24];
+    if (img && img.complete && img.naturalWidth) {
+      const cx = CANNON_DX + CANNON_W / 2;
+      const cy = CANNON_DY + CANNON_H / 2;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(m_cannonScale, m_cannonScale);
+      ctx.drawImage(img, -CANNON_W / 2, -CANNON_H / 2, CANNON_W, CANNON_H);
+      ctx.restore();
+    }
+    // 砲口噴火
+    m_muzzleFlashes.forEach(f => {
+      const t = (now - f.t0) / MUZZLE_DUR;
+      const r = 28 + t * 48;
+      ctx.save();
+      ctx.globalAlpha = (1 - t) * 0.88;
+      const grd = ctx.createRadialGradient(f.x, f.y, 2, f.x, f.y, r);
+      grd.addColorStop(0, `rgba(${f.col},1)`);
+      grd.addColorStop(1, `rgba(${f.col},0)`);
+      ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = grd; ctx.fill();
+      ctx.restore();
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// ── 繪製：火球（一般）──
+// ═══════════════════════════════════════════════════
+function drawFireBallsNormal(now) {
+  n_fireBalls.forEach(fb => {
+    if (fb.t0 < 0) return;
+    ctx.save();
+    let popScale = 1;
+    if (fb.popT >= 0) {
+      const pt = Math.min((now - fb.popT) / REVEAL_POP_DUR, 1);
+      popScale = 1 + 0.65 * Math.sin(pt * Math.PI);
+    }
+    const r = fb.r * popScale;
+    ctx.globalAlpha = fb.alpha;
+
+    const grd = ctx.createRadialGradient(fb.x, fb.y, r*0.2, fb.x, fb.y, r*2);
+    if (!fb.exploded) {
+      grd.addColorStop(0, 'rgba(255,180,60,0.75)');
+      grd.addColorStop(0.5, 'rgba(220,50,0,0.35)');
+      grd.addColorStop(1, 'rgba(140,0,0,0)');
+    } else {
+      grd.addColorStop(0, 'rgba(255,240,100,0.9)');
+      grd.addColorStop(0.5, 'rgba(255,120,0,0.45)');
+      grd.addColorStop(1, 'rgba(180,40,0,0)');
+    }
+    ctx.beginPath(); ctx.arc(fb.x, fb.y, r*2, 0, Math.PI*2);
+    ctx.fillStyle = grd; ctx.fill();
+
+    ctx.beginPath(); ctx.arc(fb.x, fb.y, r, 0, Math.PI*2);
+    ctx.fillStyle   = fb.exploded ? '#3a1200' : '#550000';
+    ctx.strokeStyle = fb.exploded ? '#ffaa00' : '#ff5500';
+    ctx.lineWidth   = fb.exploded ? 3 : 2.5;
+    ctx.shadowColor = fb.exploded ? '#ff8800' : '#ff2200';
+    ctx.shadowBlur  = 16;
+    ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+
+    if (fb.arrived) {
+      const val = fb.exploded ? fb.finalVal : fb.baseVal;
+      const fs  = Math.round(r * (fb.exploded ? 0.70 : 0.62));
+      ctx.font         = `700 ${fs}px sans-serif`;
+      ctx.textAlign    = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle    = fb.exploded ? '#ffee00' : '#ffddbb';
+      ctx.shadowColor  = fb.exploded ? '#ff6600' : '#880000';
+      ctx.shadowBlur   = 5;
+      ctx.fillText(val + 'x', fb.x, fb.y + 1);
+      ctx.shadowBlur   = 0;
+    }
+    ctx.beginPath();
+    ctx.arc(fb.x - r*0.28, fb.y - r*0.3, r*0.28, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.40)'; ctx.fill();
+    ctx.restore();
+  });
+}
+
+// ── 繪製：毒氣球（一般）──
+function drawGasBallsNormal(now) {
+  n_gasBalls.forEach(g => {
+    if (g.t0 < 0 || g.arrived) return;
+    ctx.save(); ctx.globalAlpha = g.alpha;
+    const pulse = 0.7 + 0.3 * Math.sin(now * 0.009);
+    const grd = ctx.createRadialGradient(g.x, g.y, g.r*0.2, g.x, g.y, g.r*2);
+    grd.addColorStop(0,   `rgba(160,255,140,${(0.65*pulse).toFixed(2)})`);
+    grd.addColorStop(0.5, `rgba(40,190,50,${(0.28*pulse).toFixed(2)})`);
+    grd.addColorStop(1,   'rgba(0,80,0,0)');
+    ctx.beginPath(); ctx.arc(g.x, g.y, g.r*2, 0, Math.PI*2);
+    ctx.fillStyle = grd; ctx.fill();
+    ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
+    ctx.fillStyle = '#002200'; ctx.strokeStyle = '#55ff88';
+    ctx.lineWidth = 2; ctx.shadowColor = '#00ff55'; ctx.shadowBlur = 14;
+    ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.arc(g.x - g.r*0.25, g.y - g.r*0.25, g.r*0.3, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(180,255,180,0.35)'; ctx.fill();
+    ctx.restore();
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// ── 繪製：火球（MEGA）──
+// ═══════════════════════════════════════════════════
+function drawFireBallsMega(now) {
+  m_fireBalls.forEach(fb => {
+    if (fb.t0 < 0) return;
+
+    // ── 得獎展示階段：球體消失，只顯示倍率 ──
+    if (m_prizeLabels && fb.arrived) {
+      const fs = Math.round(fb.r * 1.1);
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `800 ${fs}px sans-serif`;
+      ctx.fillStyle = '#ffee44'; ctx.shadowColor = '#ff8800'; ctx.shadowBlur = 14;
+      ctx.fillText(fb.finalVal + 'x', fb.tx, fb.ty);
+      ctx.restore();
+      return;
+    }
+
+    ctx.save();
+    let popScale = 1;
+    if (fb.popT >= 0) {
+      const pt = Math.min((now - fb.popT) / REVEAL_POP_DUR, 1);
+      popScale = 1 + 0.6 * Math.sin(pt * Math.PI);
+    }
+    const jitter = fb.isPartial ? 1 + 0.06 * Math.sin(now * 0.011) : 1;
+    const r = fb.r * popScale * jitter;
+    ctx.globalAlpha = fb.alpha;
+
+    const isFinal   = fb.exploded && !fb.isPartial;
+    const isPartial = fb.isPartial && fb.stagesApplied > 0;
+
+    const grd = ctx.createRadialGradient(fb.x, fb.y, r*0.2, fb.x, fb.y, r*2.4);
+    if (isFinal) {
+      grd.addColorStop(0, 'rgba(255,240,80,0.9)');
+      grd.addColorStop(0.5, 'rgba(255,120,0,0.4)'); grd.addColorStop(1, 'rgba(150,30,0,0)');
+    } else if (isPartial) {
+      grd.addColorStop(0, 'rgba(255,170,50,0.8)');
+      grd.addColorStop(0.5, 'rgba(220,80,0,0.38)'); grd.addColorStop(1, 'rgba(120,20,0,0)');
+    } else {
+      grd.addColorStop(0, 'rgba(255,120,40,0.72)');
+      grd.addColorStop(0.5, 'rgba(180,30,0,0.3)'); grd.addColorStop(1, 'rgba(100,0,0,0)');
+    }
+    ctx.beginPath(); ctx.arc(fb.x, fb.y, r*2.4, 0, Math.PI*2);
+    ctx.fillStyle = grd; ctx.fill();
+
+    ctx.beginPath(); ctx.arc(fb.x, fb.y, r, 0, Math.PI*2);
+    if (isFinal) {
+      ctx.fillStyle='#2a0e00'; ctx.strokeStyle='#ffcc00';
+      ctx.lineWidth=fb.type==='big'?3.5:2.5; ctx.shadowColor='#ff8800'; ctx.shadowBlur=20;
+    } else if (isPartial) {
+      ctx.fillStyle='#3a1400'; ctx.strokeStyle='#ff8833';
+      ctx.lineWidth=2.5; ctx.shadowColor='#ff5500'; ctx.shadowBlur=16;
+    } else {
+      ctx.fillStyle=fb.type==='big'?'#440000':'#330000';
+      ctx.strokeStyle=fb.type==='big'?'#ff3300':'#ff5500';
+      ctx.lineWidth=fb.type==='big'?3:2; ctx.shadowColor='#ff2200'; ctx.shadowBlur=13;
+    }
+    ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+
+    if (fb.arrived) {
+      const fs = Math.round(r * (isFinal ? 0.68 : 0.58));
+      ctx.font=`700 ${fs}px sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle = isFinal?'#ffee00':(isPartial?'#ffc860':'#ffccaa');
+      ctx.shadowColor = isFinal?'#ff6600':'#880000'; ctx.shadowBlur=6;
+      ctx.fillText(fb.currentDisplayVal+'x', fb.x, fb.y+1);
+      ctx.shadowBlur=0;
+      if (isPartial) {
+        const p = 0.65 + 0.35 * Math.sin(now * 0.009);
+        ctx.globalAlpha = p;
+        ctx.font=`bold ${Math.round(r*0.42)}px sans-serif`;
+        ctx.fillStyle='#ffaa44'; ctx.shadowColor='#ff6600'; ctx.shadowBlur=4;
+        ctx.fillText('▲', fb.x+r*0.72, fb.y-r*0.64);
+        ctx.shadowBlur=0; ctx.globalAlpha=1;
+      }
+    }
+    ctx.beginPath();
+    ctx.arc(fb.x-r*0.28, fb.y-r*0.3, r*0.26, 0, Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,0.38)'; ctx.fill();
+    ctx.restore();
+  });
+
+  // ── ×N 乘倍彈出特效 ──
+  const POP_TOTAL = 1100;
+  m_popOverlays.forEach(po => {
+    const t = Math.min((now - po.t0) / POP_TOTAL, 1);
+    if (t >= 1) return;
+
+    // 縮放：0→1.25 在前 20%，然後回到 1.0
+    const scalePhase = t < 0.2 ? t / 0.2 : 1;
+    const bounce = scalePhase < 1 ? 0.9 + 0.35 * Math.sin(scalePhase * Math.PI) : 1.0;
+    // 透明度：前 15% 淡入，後 35% 保持，最後 50% 淡出
+    const alpha = t < 0.15 ? t / 0.15
+                : t < 0.5  ? 1
+                : 1 - (t - 0.5) / 0.5;
+    // 向上漂移
+    const floatY = po.r * 1.4 * t;
+    const fs = Math.round(po.r * (po.isFinal ? 1.3 : 1.1));
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, alpha);
+    ctx.translate(po.x, po.y - floatY);
+    ctx.scale(bounce, bounce);
+    ctx.font = `900 ${fs}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    // 外框字（深色）
+    ctx.strokeStyle = po.isFinal ? '#7a3a00' : '#441100';
+    ctx.lineWidth = fs * 0.18;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(po.text, 0, 0);
+    // 填充（金黃 / 橙）
+    ctx.fillStyle = po.isFinal ? '#fff066' : '#ffbb33';
+    ctx.shadowColor = po.isFinal ? '#ff9900' : '#ff5500';
+    ctx.shadowBlur  = 14;
+    ctx.fillText(po.text, 0, 0);
+    ctx.restore();
+  });
+}
+
+// ── 繪製：毒氣球（MEGA）──
+function drawGasBallsMega(now) {
+  m_gasBallsActive.forEach(g => {
+    if (g.t0 < 0 || g.arrived) return;
+    ctx.save(); ctx.globalAlpha = g.alpha;
+    const pulse = 0.72 + 0.28 * Math.sin(now * 0.01);
+    const grd = ctx.createRadialGradient(g.x, g.y, g.r*0.2, g.x, g.y, g.r*2.4);
+    grd.addColorStop(0,   `rgba(140,255,120,${(0.72*pulse).toFixed(2)})`);
+    grd.addColorStop(0.5, `rgba(40,200,55,${(0.28*pulse).toFixed(2)})`);
+    grd.addColorStop(1,   'rgba(0,80,0,0)');
+    ctx.beginPath(); ctx.arc(g.x, g.y, g.r*2.4, 0, Math.PI*2);
+    ctx.fillStyle=grd; ctx.fill();
+    ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
+    ctx.fillStyle='#001800'; ctx.strokeStyle='#44ff88';
+    ctx.lineWidth=2; ctx.shadowColor='#00ff55'; ctx.shadowBlur=14;
+    ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+    ctx.beginPath();
+    ctx.arc(g.x-g.r*0.28, g.y-g.r*0.28, g.r*0.32, 0, Math.PI*2);
+    ctx.fillStyle='rgba(180,255,180,0.35)'; ctx.fill();
+    ctx.restore();
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// ── 繪製：右嘴集氣特效（MEGA）──
+// ═══════════════════════════════════════════════════
+function drawGasCharge(now) {
+  if (phase !== 'gas_charge' || m_gasChargeT < 0) return;
+
+  const t  = Math.min((now - m_gasChargeT) / GAS_CHARGE_DUR, 1);
+  const cx = M_GAS_X;   // ★ 與 M_GAS_X / M_GAS_Y 連動
+  const cy = M_GAS_Y;
+
+  // ── 1. 收縮煙霧環（3 圈，錯開相位）──
+  for (let ri = 0; ri < 3; ri++) {
+    const lt   = ((t * 1.8 + ri / 3) % 1);          // 循環本地時間
+    const maxR = 160 * (1 - t * 0.55);               // 外環隨充能縮小
+    const rr   = Math.max(4, maxR * (1 - lt));
+    const ra   = (lt < 0.25 ? lt / 0.25 : 1 - (lt - 0.25) / 0.75) * 0.65;
+    ctx.save();
+    ctx.globalAlpha = ra * (0.35 + t * 0.65);
+    ctx.strokeStyle = ['#44ff88','#88ffcc','#00dd55'][ri];
+    ctx.lineWidth   = 2.2 - ri * 0.4;
+    ctx.shadowColor = '#00ff66'; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ── 2. 螺旋聚攏粒子 ──
+  const N = 12;
+  for (let i = 0; i < N; i++) {
+    const ang  = (i / N) * Math.PI * 2 + t * Math.PI * 5 + now * 0.0015;
+    const dist = 155 * (1 - eoc(t)) + 6;
+    const px   = cx + Math.cos(ang) * dist;
+    const py   = cy + Math.sin(ang) * dist;
+    const pr   = 3 + t * 3;
+    ctx.save();
+    ctx.globalAlpha = 0.3 + t * 0.65;
+    ctx.shadowColor = '#00ff66'; ctx.shadowBlur = 7;
+    ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2);
+    ctx.fillStyle = i % 2 === 0 ? '#88ffaa' : '#33ee66';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ── 3. 中心光暈（充能越深越亮）──
+  const pulse = 1 + 0.12 * Math.sin(now * 0.02);
+  const coreR = (14 + t * 52) * pulse;
+  const grd   = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+  grd.addColorStop(0,   `rgba(220,255,220,${0.45 + t * 0.45})`);
+  grd.addColorStop(0.3, `rgba(60,255,110,${0.25 + t * 0.40})`);
+  grd.addColorStop(0.7, `rgba(0,160,55,${0.10 + t * 0.18})`);
+  grd.addColorStop(1,   'rgba(0,50,0,0)');
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
+  ctx.fillStyle = grd; ctx.fill();
+  ctx.restore();
+
+  // ── 4. 充能快完成時的白色爆閃（t > 0.80）──
+  if (t > 0.80) {
+    const ft = (t - 0.80) / 0.20;
+    ctx.save();
+    ctx.globalAlpha = ft * 0.55;
+    const fr  = 55 + ft * 50;
+    const fg  = ctx.createRadialGradient(cx, cy, 0, cx, cy, fr);
+    fg.addColorStop(0,   'rgba(255,255,255,0.95)');
+    fg.addColorStop(0.25,'rgba(180,255,180,0.70)');
+    fg.addColorStop(1,   'rgba(0,200,80,0)');
+    ctx.beginPath(); ctx.arc(cx, cy, fr, 0, Math.PI * 2);
+    ctx.fillStyle = fg; ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// ── 繪製：爆炸（共用）──
+// ═══════════════════════════════════════════════════
+function drawExplosions(now) {
+  const balls = mode === 'normal' ? n_fireBalls : m_fireBalls;
+  balls.forEach(fb => {
+    if (!fb.exploded || fb.explodeT < 0) return;
+    const elapsed = now - fb.explodeT;
+    if (elapsed > EXPLODE_DUR) return;
+    const t = elapsed / EXPLODE_DUR;
+    for (let ring = 0; ring < 4; ring++) {
+      const rt = Math.max(0, t - ring * 0.1);
+      if (rt <= 0) continue;
+      ctx.save();
+      ctx.globalAlpha = (1 - rt) * 0.62;
+      ctx.strokeStyle = ['#ffffff','#ffee44','#ff8800','#ff3300'][ring];
+      ctx.lineWidth   = Math.max(0.5, 3 - ring * 0.55);
+      ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 18;
+      ctx.beginPath(); ctx.arc(fb.x, fb.y, fb.r * (1 + rt * 4.8), 0, Math.PI*2); ctx.stroke();
+      ctx.shadowBlur = 0; ctx.restore();
+    }
+    if (t < 0.18) {
+      ctx.save(); ctx.globalAlpha = (0.18-t)/0.18*0.3;
+      ctx.fillStyle='#ffeeaa'; ctx.fillRect(0,0,BASE_W,BASE_H); ctx.restore();
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// 金幣、結算、獎圈（共用）
+// ═══════════════════════════════════════════════════
+function spawnCoins(ball) {
+  const n = (ball.type === 'big') ? 7 : 4;
+  const minD = ball.r*1.4, maxD = ball.r*3.2;
+  for (let i = 0; i < n; i++) {
+    const ang = Math.random()*Math.PI*2;
+    const d   = minD + Math.random()*(maxD-minD);
+    allCoins.push({ x:ball.tx+Math.cos(ang)*d, y:ball.ty+Math.sin(ang)*d, born:Date.now(), alpha:1 });
+  }
+}
+
+function drawCoins() {
+  const now = Date.now();
+  allCoins.forEach(c => {
+    const frame = Math.floor((now-c.born)/(1000/COIN_FPS)) % COIN_TOTAL;
+    const img   = coinImgs[frame];
+    if (img && img.complete && img.naturalWidth>0) {
+      ctx.globalAlpha=c.alpha; ctx.drawImage(img,c.x-24,c.y-24,48,48); ctx.globalAlpha=1;
+    }
+  });
+}
+
+function collectCoins(cb) {
+  const total = allCoins.length;
+  if (!total) { cb&&cb(); return; }
+  const ciEl   = document.getElementById('ciEl');
+  const ciRect = ciEl.getBoundingClientRect();
+  const wRect  = wrap.getBoundingClientRect();
+  const tx = ((ciRect.left-wRect.left)+ciRect.width/2)/scale;
+  const ty = ((ciRect.top-wRect.top)+ciRect.height/2)/scale;
+  allCoins.forEach((c,i)=>{
+    setTimeout(()=>{
+      const sx=c.x,sy=c.y; let t2=0;
+      const mv=setInterval(()=>{
+        t2+=0.06; const et=eoc(Math.min(t2,1));
+        c.x=sx+(tx-sx)*et; c.y=sy+(ty-sy)*et; c.alpha=1-Math.min(t2,1);
+        if(t2>=1) clearInterval(mv);
+      },16);
+    },i*22);
+  });
+  setTimeout(()=>{ allCoins=[]; cb&&cb(); }, total*22+700);
+}
+
+function showPrizeCircle(val) {
+  const ci=document.getElementById('ciEl');
+  ci.style.transition='transform .25s'; ci.style.transform='scale(2.4)';
+  setTimeout(()=>ci.style.transform='scale(1)',350);
+  const w=document.getElementById('winEl');
+  w.style.display='inline'; w.textContent=' +'+val+'x';
+  w.style.opacity='0'; w.style.transition='opacity .3s';
+  setTimeout(()=>w.style.opacity='1',100);
+  const pw=document.getElementById('prizeWrap');
+  document.getElementById('prizeAmtEl').textContent=(val*bet).toLocaleString()+' 金幣';
+  pw.style.visibility='visible'; pw.style.opacity='0';
+  setTimeout(()=>pw.style.opacity='1',50);
+  setTimeout(()=>{
+    pw.style.opacity='0'; w.style.opacity='0';
+    setTimeout(()=>{ pw.style.visibility='hidden'; w.style.display='none'; },450);
+  },3500);
+  setSt('獲得 '+val+'x！');
+}
+
+// ═══════════════════════════════════════════════════
+// 嘴巴位置校準
+// ═══════════════════════════════════════════════════
+let calibOpen = false;
+
+function toggleCalib() {
+  calibOpen = !calibOpen;
+  const panel = document.getElementById('calibPanel');
+  const btn   = document.getElementById('calibBtn');
+  panel.style.display = calibOpen ? 'block' : 'none';
+  btn.style.borderColor = calibOpen ? '#ffcc44' : '#664422';
+  btn.style.background  = calibOpen ? '#332200aa' : '#00000088';
+}
+
+function _setCalibPair(idPfx, val) {
+  const r = document.getElementById(idPfx + 'R');
+  const n = document.getElementById(idPfx + 'N');
+  if (r) r.value = val;
+  if (n) n.value = val;
+}
+
+function _bindCalibPair(idPfx, setter) {
+  const r = document.getElementById(idPfx + 'R');
+  const n = document.getElementById(idPfx + 'N');
+  const update = v => { const iv = parseInt(v, 10); if (!isNaN(iv)) setter(iv); };
+  if (r) r.addEventListener('input', () => { if (n) n.value = r.value; update(r.value); });
+  if (n) n.addEventListener('input', () => { if (r) r.value = n.value; update(n.value); });
+}
+
+function initCalib() {
+  _setCalibPair('mfx', M_FIRE_X); _setCalibPair('mfy', M_FIRE_Y);
+  _setCalibPair('mgx', M_GAS_X);  _setCalibPair('mgy', M_GAS_Y);
+  _bindCalibPair('mfx', v => M_FIRE_X = v);
+  _bindCalibPair('mfy', v => M_FIRE_Y = v);
+  _bindCalibPair('mgx', v => M_GAS_X  = v);
+  _bindCalibPair('mgy', v => M_GAS_Y  = v);
+}
+
+function copyCoords() {
+  const lines = [
+    `// 砲臺龍嘴位置（已校準）`,
+    `let M_FIRE_X = ${M_FIRE_X};  // 左嘴火球`,
+    `let M_FIRE_Y = ${M_FIRE_Y};`,
+    `let M_GAS_X  = ${M_GAS_X};   // 右嘴乘倍`,
+    `let M_GAS_Y  = ${M_GAS_Y};`
+  ].join('\n');
+  navigator.clipboard.writeText(lines).catch(() => {});
+  const el = document.getElementById('calibCopied');
+  el.textContent = '✓ 已複製！直接貼入程式碼即可';
+  setTimeout(() => { el.textContent = ''; }, 2500);
+}
+
+// 畫面上的十字準星標記（校準模式開啟時顯示）
+function drawCalibMarkers() {
+  if (!calibOpen) return;
+  const markers = [
+    { x: M_FIRE_X, y: M_FIRE_Y, col: '#ff7733', label: '左嘴 🔥' },
+    { x: M_GAS_X,  y: M_GAS_Y,  col: '#33ff88', label: '右嘴 💨' }
+  ];
+  markers.forEach(({ x, y, col, label }) => {
+    ctx.save();
+    // 外暈
+    ctx.shadowColor = col; ctx.shadowBlur = 12;
+    ctx.strokeStyle = col; ctx.lineWidth = 2;
+    // 橫線
+    ctx.setLineDash([5, 3]);
+    ctx.beginPath(); ctx.moveTo(x - 28, y); ctx.lineTo(x + 28, y); ctx.stroke();
+    // 縱線
+    ctx.beginPath(); ctx.moveTo(x, y - 28); ctx.lineTo(x, y + 28); ctx.stroke();
+    ctx.setLineDash([]);
+    // 中心圓
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = col; ctx.shadowBlur = 8; ctx.fill();
+    // 座標文字
+    ctx.font = 'bold 12px monospace';
+    ctx.fillStyle = col; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.shadowBlur = 6;
+    ctx.fillText(`${label}  x=${x}  y=${y}`, x + 10, y - 6);
+    ctx.restore();
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// ── 發光彈：各球位置 → 收集面板 ──
+// ═══════════════════════════════════════════════════
+function spawnShards() {
+  m_collectShards = [];
+  const ciEl  = document.getElementById('ciEl');
+  const wRect = wrap.getBoundingClientRect();
+  const ciR   = ciEl.getBoundingClientRect();
+  const ciCx  = ((ciR.left - wRect.left) + ciR.width  / 2) / scale;
+  const ciCy  = ((ciR.top  - wRect.top)  + ciR.height / 2) / scale;
+  const tx = ciCx + COLLECT_OX;   // 面板中心 X
+  const ty = ciCy + COLLECT_OY;   // 面板中心 Y
+  const t0 = Date.now();
+  m_fireBalls.forEach((fb, i) => {
+    if (!fb.arrived) return;
+    m_collectShards.push({
+      sx: fb.tx, sy: fb.ty, tx, ty,
+      t0:  t0 + i * 200,   // 錯開出發
+      dur: 620
+    });
+  });
+}
+
+function drawCollectShards(now) {
+  if (!m_collectVisible) return;
+  m_collectShards.forEach(s => {
+    if (now < s.t0) return;
+    const t = Math.min((now - s.t0) / s.dur, 1);
+    if (t >= 1) return;
+    const et  = eoc(t);
+    const x   = s.sx + (s.tx - s.sx) * et;
+    const y   = s.sy + (s.ty - s.sy) * et;
+    const r   = 13 * (1 - t * 0.3);
+    const alp = t < 0.12 ? t / 0.12 : (t > 0.82 ? (1 - t) / 0.18 : 1);
+    ctx.save();
+    ctx.globalAlpha = alp;
+    // 外暈
+    const grd = ctx.createRadialGradient(x, y, 0, x, y, r * 2.4);
+    grd.addColorStop(0,    'rgba(255,245,120,0.95)');
+    grd.addColorStop(0.45, 'rgba(255,150,20,0.60)');
+    grd.addColorStop(1,    'rgba(180,60,0,0)');
+    ctx.beginPath(); ctx.arc(x, y, r * 2.4, 0, Math.PI * 2);
+    ctx.fillStyle = grd; ctx.fill();
+    // 核心
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffdd44'; ctx.shadowColor = '#ff8800'; ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// ── 收集面板（double_frame.png 198×67）──
+// ═══════════════════════════════════════════════════
+function drawCollectPanel(now) {
+  if (!m_collectVisible) return;
+  const img = imgs['collectFrame'];
+  if (!img || !img.complete || !img.naturalWidth) return;
+
+  // 定位在 #ciEl（財產處）旁邊
+  const ciEl  = document.getElementById('ciEl');
+  const wRect = wrap.getBoundingClientRect();
+  const ciR   = ciEl.getBoundingClientRect();
+  const cx    = ((ciR.left - wRect.left) + ciR.width  / 2) / scale;
+  const cy    = ((ciR.top  - wRect.top)  + ciR.height / 2) / scale;
+
+  const PW = 198, PH = 67;
+  const panelCx = cx + COLLECT_OX;          // ★ 面板中心 X
+  const panelCy = cy + COLLECT_OY;          // ★ 面板中心 Y
+  const px = panelCx - PW / 2;
+  const py = panelCy - PH / 2;
+
+  ctx.drawImage(img, px, py, PW, PH);
+
+  // 跑分數字（置中在面板中心）
+  const elapsed = m_collectT >= 0 ? now - m_collectT : 0;
+  const t   = Math.min(elapsed / COLLECT_COUNT_DUR, 1);
+  const cur = Math.round(eoc(t) * m_collectTarget);
+
+  ctx.save();
+  ctx.font = `bold ${Math.round(PH * 0.36)}px sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffee44';
+  ctx.shadowColor = '#ff8800'; ctx.shadowBlur = 6;
+  ctx.fillText(cur + 'x', panelCx, panelCy + 1);
+  ctx.restore();
+}
+
+// ── 最終獎圈（prize_circle3.png）──
+function showFinalPrizeMega(totalAmt) {
+  const pw  = document.getElementById('prizeWrap');
+  const img = pw.querySelector('img');
+  if (img) {
+    img.src = 'effect/prize_circle3.png';
+    img.style.width = 'clamp(170px,21vw,270px)';
+  }
+  document.getElementById('prizeAmtEl').textContent = totalAmt.toLocaleString() + ' 金幣';
+
+  const ci = document.getElementById('ciEl');
+  ci.style.transition = 'transform .25s'; ci.style.transform = 'scale(2.4)';
+  setTimeout(() => ci.style.transform = 'scale(1)', 350);
+
+  pw.style.visibility = 'visible'; pw.style.opacity = '0';
+  setTimeout(() => pw.style.opacity = '1', 50);
+
+  setSt('獲得 ' + totalAmt.toLocaleString() + ' 金幣！');
+
+  setTimeout(() => {
+    pw.style.opacity = '0';
+    setTimeout(() => {
+      pw.style.visibility = 'hidden';
+      if (img) img.src = 'effect/prize_circle2.png';  // 還原一般模式
+    }, 450);
+  }, 3800);
+}
+
+// ═══════════════════════════════════════════════════
+// 主繪製迴圈
+// ═══════════════════════════════════════════════════
+function render() {
+  const now = Date.now();
+  ctx.clearRect(0, 0, BASE_W, BASE_H);
+  updatePhase(now);
+
+  if (mode === 'normal') {
+    drawDragonNormal(now);
+    drawFireBallsNormal(now);
+    drawGasBallsNormal(now);
+  } else {
+    drawDragonMega(now);
+    drawFireBallsMega(now);
+    drawGasBallsMega(now);
+    drawGasCharge(now);
+    drawCollectShards(now);
+    drawCollectPanel(now);
+  }
+
+  drawCoins();
+  drawExplosions(now);
+  if (mode === 'mega') drawCalibMarkers();
+  requestAnimationFrame(render);
+}
+
+// ═══════════════════════════════════════════════════
+// 射擊
+// ═══════════════════════════════════════════════════
+function shoot() {
+  if (busy) return;
+  shots++;
+  if (shots < 3) { setSt(['','命中！','再一發！'][shots]); return; }
+  busy = true; shots = 0;
+  document.getElementById('abtn').style.opacity = '.35';
+
+  if (mode === 'normal') {
+    buildBallsNormal();
+    phase = 'shake'; n_shakeT = Date.now(); n_lastLandT = -1;
+    n_dragonForm = 21;
+    setSt('命中！雙頭龍！');
+  } else {
+    buildBallsMega();
+    phase = 'shake'; m_shakeT = Date.now(); m_lastLandT = -1;
+    m_dragonScale = 1; m_cannonScale = 0; m_muzzleFlashes = [];
+    setSt('命中！MEGA 雙頭龍！');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// 重置
+// ═══════════════════════════════════════════════════
+function resetGame() {
+  shots = 0; busy = false; phase = 'idle'; allCoins = [];
+  document.getElementById('abtn').style.opacity = '1';
+  document.getElementById('winEl').style.display = 'none';
+  const pw = document.getElementById('prizeWrap');
+  if (pw) { pw.style.visibility='hidden'; pw.style.opacity='0'; }
+  setSt('');
+
+  // 一般
+  n_fireBalls=[]; n_gasBalls=[]; n_dragonForm=21;
+  n_shakeT=-1; n_changeT=-1; n_fireIdx=0; n_fireT=-1;
+  n_gasIdx=0; n_gasT=-1; n_lastLandT=-1;
+
+  // MEGA
+  m_fireBalls=[]; m_gasBallsActive=[]; m_muzzleFlashes=[]; m_popOverlays=[];
+  m_shakeT=-1; m_shrinkT=-1; m_cannonT=-1;
+  m_fireIdx=0; m_fireT=-1; m_gasWave=0; m_gasIdx=0; m_gasT=-1;
+  m_gasWavePauseT=-1; m_gasChargeT=-1; m_lastLandT=-1; m_maxGasWaves=0;
+  m_allExplodeT=-1; m_prizeLabels=false;
+  m_collectVisible=false; m_collectT=-1; m_collectTarget=0; m_collectShards=[];
+  m_dragonScale=1; m_cannonScale=0;
+}
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  wrap   = document.getElementById('wrap');
+  canvas = document.getElementById('gameCanvas');
+  ctx    = canvas.getContext('2d');
+  resize();
+  window.addEventListener('resize', resize);
+  loadImages();
+  initCalib();
+  requestAnimationFrame(render);
+});
+</script>
+</body>
+</html>
