@@ -107,48 +107,129 @@ body{background:#000;overflow:hidden;width:100vw;height:100vh;display:flex;align
       padding:12px 14px;font-family:sans-serif;font-size:12px;color:#ffcc88;
       pointer-events:all;z-index:200;width:246px;line-height:1.9;
       box-shadow:0 4px 24px #0008;">
-      <div style="font-size:13px;font-weight:700;color:#ffee44;margin-bottom:4px;">
-        🐉 MEGA 嘴巴位置校準
+      <div id="calibTitle" style="font-size:13px;font-weight:700;color:#ffee44;margin-bottom:4px;">
+        🐉 嘴巴位置校準
       </div>
       <div style="font-size:11px;color:#aa8855;margin-bottom:10px;">
         調整後按「複製座標」貼入程式碼
       </div>
-      <!-- 左嘴 -->
-      <div style="color:#ff9966;font-weight:700;margin-bottom:2px;">🔥 左嘴（火球發射點）</div>
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-        <span style="width:14px">X</span>
-        <input type="range" id="mfxR" min="0" max="1600" step="1"
-          style="flex:1;accent-color:#ff8844;">
-        <input type="number" id="mfxN" min="0" max="1600" step="1"
-          style="width:52px;background:#1a0e00;color:#ffcc88;border:1px solid #664422;
-                 border-radius:4px;padding:2px 4px;font-size:12px;">
+
+      <!-- ══ 一般版區塊 ══ -->
+      <div id="calibNormal">
+        <!-- 左頭火球 -->
+        <div style="color:#ff9966;font-weight:700;margin-bottom:2px;">🔥 左頭（火球發射點）</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="width:14px">X</span>
+          <input type="range" id="nflxR" min="0" max="1600" step="1"
+            style="flex:1;accent-color:#ff8844;">
+          <input type="number" id="nflxN" min="0" max="1600" step="1"
+            style="width:52px;background:#1a0e00;color:#ffcc88;border:1px solid #664422;
+                   border-radius:4px;padding:2px 4px;font-size:12px;">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+          <span style="width:14px">Y</span>
+          <input type="range" id="nflyR" min="0" max="640" step="1"
+            style="flex:1;accent-color:#ff8844;">
+          <input type="number" id="nflyN" min="0" max="640" step="1"
+            style="width:52px;background:#1a0e00;color:#ffcc88;border:1px solid #664422;
+                   border-radius:4px;padding:2px 4px;font-size:12px;">
+        </div>
+        <!-- 右頭火球 -->
+        <div style="color:#ff9966;font-weight:700;margin-bottom:2px;">🔥 右頭（火球發射點）</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="width:14px">X</span>
+          <input type="range" id="nfrxR" min="0" max="1600" step="1"
+            style="flex:1;accent-color:#ff8844;">
+          <input type="number" id="nfrxN" min="0" max="1600" step="1"
+            style="width:52px;background:#1a0e00;color:#ffcc88;border:1px solid #664422;
+                   border-radius:4px;padding:2px 4px;font-size:12px;">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+          <span style="width:14px">Y</span>
+          <input type="range" id="nfryR" min="0" max="640" step="1"
+            style="flex:1;accent-color:#ff8844;">
+          <input type="number" id="nfryN" min="0" max="640" step="1"
+            style="width:52px;background:#1a0e00;color:#ffcc88;border:1px solid #664422;
+                   border-radius:4px;padding:2px 4px;font-size:12px;">
+        </div>
+        <!-- 左頭毒氣 -->
+        <div style="color:#44ff99;font-weight:700;margin-bottom:2px;">💨 左頭（毒氣發射點）</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="width:14px">X</span>
+          <input type="range" id="nglxR" min="0" max="1600" step="1"
+            style="flex:1;accent-color:#44ff88;">
+          <input type="number" id="nglxN" min="0" max="1600" step="1"
+            style="width:52px;background:#001a0a;color:#88ffcc;border:1px solid #226644;
+                   border-radius:4px;padding:2px 4px;font-size:12px;">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+          <span style="width:14px">Y</span>
+          <input type="range" id="nglyR" min="0" max="640" step="1"
+            style="flex:1;accent-color:#44ff88;">
+          <input type="number" id="nglyN" min="0" max="640" step="1"
+            style="width:52px;background:#001a0a;color:#88ffcc;border:1px solid #226644;
+                   border-radius:4px;padding:2px 4px;font-size:12px;">
+        </div>
+        <!-- 右頭毒氣 -->
+        <div style="color:#44ff99;font-weight:700;margin-bottom:2px;">💨 右頭（毒氣發射點）</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="width:14px">X</span>
+          <input type="range" id="ngrxR" min="0" max="1600" step="1"
+            style="flex:1;accent-color:#44ff88;">
+          <input type="number" id="ngrxN" min="0" max="1600" step="1"
+            style="width:52px;background:#001a0a;color:#88ffcc;border:1px solid #226644;
+                   border-radius:4px;padding:2px 4px;font-size:12px;">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
+          <span style="width:14px">Y</span>
+          <input type="range" id="ngryR" min="0" max="640" step="1"
+            style="flex:1;accent-color:#44ff88;">
+          <input type="number" id="ngryN" min="0" max="640" step="1"
+            style="width:52px;background:#001a0a;color:#88ffcc;border:1px solid #226644;
+                   border-radius:4px;padding:2px 4px;font-size:12px;">
+        </div>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
-        <span style="width:14px">Y</span>
-        <input type="range" id="mfyR" min="200" max="640" step="1"
-          style="flex:1;accent-color:#ff8844;">
-        <input type="number" id="mfyN" min="200" max="640" step="1"
-          style="width:52px;background:#1a0e00;color:#ffcc88;border:1px solid #664422;
-                 border-radius:4px;padding:2px 4px;font-size:12px;">
+
+      <!-- ══ MEGA 版區塊 ══ -->
+      <div id="calibMega">
+        <!-- 左嘴火球 -->
+        <div style="color:#ff9966;font-weight:700;margin-bottom:2px;">🔥 左嘴（火球發射點）</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="width:14px">X</span>
+          <input type="range" id="mfxR" min="0" max="1600" step="1"
+            style="flex:1;accent-color:#ff8844;">
+          <input type="number" id="mfxN" min="0" max="1600" step="1"
+            style="width:52px;background:#1a0e00;color:#ffcc88;border:1px solid #664422;
+                   border-radius:4px;padding:2px 4px;font-size:12px;">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+          <span style="width:14px">Y</span>
+          <input type="range" id="mfyR" min="200" max="640" step="1"
+            style="flex:1;accent-color:#ff8844;">
+          <input type="number" id="mfyN" min="200" max="640" step="1"
+            style="width:52px;background:#1a0e00;color:#ffcc88;border:1px solid #664422;
+                   border-radius:4px;padding:2px 4px;font-size:12px;">
+        </div>
+        <!-- 右嘴乘倍 -->
+        <div style="color:#44ff99;font-weight:700;margin-bottom:2px;">💨 右嘴（乘倍發射點）</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="width:14px">X</span>
+          <input type="range" id="mgxR" min="0" max="1600" step="1"
+            style="flex:1;accent-color:#44ff88;">
+          <input type="number" id="mgxN" min="0" max="1600" step="1"
+            style="width:52px;background:#001a0a;color:#88ffcc;border:1px solid #226644;
+                   border-radius:4px;padding:2px 4px;font-size:12px;">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
+          <span style="width:14px">Y</span>
+          <input type="range" id="mgyR" min="200" max="640" step="1"
+            style="flex:1;accent-color:#44ff88;">
+          <input type="number" id="mgyN" min="200" max="640" step="1"
+            style="width:52px;background:#001a0a;color:#88ffcc;border:1px solid #226644;
+                   border-radius:4px;padding:2px 4px;font-size:12px;">
+        </div>
       </div>
-      <!-- 右嘴 -->
-      <div style="color:#44ff99;font-weight:700;margin-bottom:2px;">💨 右嘴（乘倍發射點）</div>
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-        <span style="width:14px">X</span>
-        <input type="range" id="mgxR" min="0" max="1600" step="1"
-          style="flex:1;accent-color:#44ff88;">
-        <input type="number" id="mgxN" min="0" max="1600" step="1"
-          style="width:52px;background:#001a0a;color:#88ffcc;border:1px solid #226644;
-                 border-radius:4px;padding:2px 4px;font-size:12px;">
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
-        <span style="width:14px">Y</span>
-        <input type="range" id="mgyR" min="200" max="640" step="1"
-          style="flex:1;accent-color:#44ff88;">
-        <input type="number" id="mgyN" min="200" max="640" step="1"
-          style="width:52px;background:#001a0a;color:#88ffcc;border:1px solid #226644;
-                 border-radius:4px;padding:2px 4px;font-size:12px;">
-      </div>
+
       <button onclick="copyCoords()"
         style="width:100%;padding:5px;background:#2a1400;border:1px solid #aa6622;
                border-radius:6px;color:#ffcc88;cursor:pointer;font-size:12px;
@@ -220,11 +301,11 @@ const BASE_W = 1600, BASE_H = 640;
 const COIN_FPS = 15, COIN_TOTAL = 15;
 
 // ── 一般模式：龍嘴位置 (22/23.png 置中 596×418) ──
-// 圖片繪製於 dx=502, dy=91；★ 可調整
-const N_FIRE_L_X = 590,  N_FIRE_L_Y = 267;
-const N_FIRE_R_X = 1009, N_FIRE_R_Y = 267;
-const N_GAS_L_X  = 590,  N_GAS_L_Y  = 267;
-const N_GAS_R_X  = 1009, N_GAS_R_Y  = 267;
+// 圖片繪製於 dx=502, dy=91；★ 用校準面板即時調整，或在此直接改數字
+let N_FIRE_L_X = 590,  N_FIRE_L_Y = 267;   // 左頭火球
+let N_FIRE_R_X = 1009, N_FIRE_R_Y = 267;   // 右頭火球
+let N_GAS_L_X  = 590,  N_GAS_L_Y  = 267;   // 左頭毒氣
+let N_GAS_R_X  = 1009, N_GAS_R_Y  = 267;   // 右頭毒氣
 
 // ── MEGA 模式：砲臺 (24.png = 768×325) ──
 const CANNON_W   = 768, CANNON_H = 325;
@@ -418,6 +499,7 @@ function switchMode(m) {
   document.getElementById('tab-normal').classList.toggle('active', m === 'normal');
   document.getElementById('tab-mega').classList.toggle('active', m === 'mega');
   document.getElementById('megaTag').style.display = m === 'mega' ? 'block' : 'none';
+  _updateCalibPanelMode();  // 校準面板同步切換
 }
 
 // ═══════════════════════════════════════════════════
@@ -1277,6 +1359,16 @@ function toggleCalib() {
   panel.style.display = calibOpen ? 'block' : 'none';
   btn.style.borderColor = calibOpen ? '#ffcc44' : '#664422';
   btn.style.background  = calibOpen ? '#332200aa' : '#00000088';
+  // 依目前 mode 顯示對應區塊
+  _updateCalibPanelMode();
+}
+
+function _updateCalibPanelMode() {
+  const isNormal = (mode === 'normal');
+  document.getElementById('calibNormal').style.display = isNormal ? 'block' : 'none';
+  document.getElementById('calibMega').style.display   = isNormal ? 'none'  : 'block';
+  document.getElementById('calibTitle').textContent =
+    isNormal ? '🐉 一般版 嘴巴位置校準' : '🐉 MEGA 嘴巴位置校準';
 }
 
 function _setCalibPair(idPfx, val) {
@@ -1295,22 +1387,49 @@ function _bindCalibPair(idPfx, setter) {
 }
 
 function initCalib() {
+  // MEGA
   _setCalibPair('mfx', M_FIRE_X); _setCalibPair('mfy', M_FIRE_Y);
   _setCalibPair('mgx', M_GAS_X);  _setCalibPair('mgy', M_GAS_Y);
   _bindCalibPair('mfx', v => M_FIRE_X = v);
   _bindCalibPair('mfy', v => M_FIRE_Y = v);
   _bindCalibPair('mgx', v => M_GAS_X  = v);
   _bindCalibPair('mgy', v => M_GAS_Y  = v);
+  // 一般版
+  _setCalibPair('nflx', N_FIRE_L_X); _setCalibPair('nfly', N_FIRE_L_Y);
+  _setCalibPair('nfrx', N_FIRE_R_X); _setCalibPair('nfry', N_FIRE_R_Y);
+  _setCalibPair('nglx', N_GAS_L_X);  _setCalibPair('ngly', N_GAS_L_Y);
+  _setCalibPair('ngrx', N_GAS_R_X);  _setCalibPair('ngry', N_GAS_R_Y);
+  _bindCalibPair('nflx', v => N_FIRE_L_X = v);
+  _bindCalibPair('nfly', v => N_FIRE_L_Y = v);
+  _bindCalibPair('nfrx', v => N_FIRE_R_X = v);
+  _bindCalibPair('nfry', v => N_FIRE_R_Y = v);
+  _bindCalibPair('nglx', v => N_GAS_L_X  = v);
+  _bindCalibPair('ngly', v => N_GAS_L_Y  = v);
+  _bindCalibPair('ngrx', v => N_GAS_R_X  = v);
+  _bindCalibPair('ngry', v => N_GAS_R_Y  = v);
+  // 初始化時根據 mode 顯示對應區塊
+  _updateCalibPanelMode();
 }
 
 function copyCoords() {
-  const lines = [
-    `// 砲臺龍嘴位置（已校準）`,
-    `let M_FIRE_X = ${M_FIRE_X};  // 左嘴火球`,
-    `let M_FIRE_Y = ${M_FIRE_Y};`,
-    `let M_GAS_X  = ${M_GAS_X};   // 右嘴乘倍`,
-    `let M_GAS_Y  = ${M_GAS_Y};`
-  ].join('\n');
+  let lines;
+  if (mode === 'normal') {
+    lines = [
+      `// 一般版龍嘴位置（已校準）`,
+      `let N_FIRE_L_X = ${N_FIRE_L_X},  N_FIRE_L_Y = ${N_FIRE_L_Y};   // 左頭火球`,
+      `let N_FIRE_R_X = ${N_FIRE_R_X},  N_FIRE_R_Y = ${N_FIRE_R_Y};   // 右頭火球`,
+      `let N_GAS_L_X  = ${N_GAS_L_X},   N_GAS_L_Y  = ${N_GAS_L_Y};    // 左頭毒氣`,
+      `let N_GAS_R_X  = ${N_GAS_R_X},   N_GAS_R_Y  = ${N_GAS_R_Y};    // 右頭毒氣`
+    ].join('\n');
+  } else {
+    lines = [
+      `// MEGA 砲臺龍嘴位置（已校準）`,
+      `let M_FIRE_X = ${M_FIRE_X};  // 左嘴火球`,
+      `let M_FIRE_Y = ${M_FIRE_Y};`,
+      `let M_GAS_X  = ${M_GAS_X};   // 右嘴乘倍`,
+      `let M_GAS_Y  = ${M_GAS_Y};`
+    ].join('\n');
+  }
   navigator.clipboard.writeText(lines).catch(() => {});
   const el = document.getElementById('calibCopied');
   el.textContent = '✓ 已複製！直接貼入程式碼即可';
@@ -1320,7 +1439,12 @@ function copyCoords() {
 // 畫面上的十字準星標記（校準模式開啟時顯示）
 function drawCalibMarkers() {
   if (!calibOpen) return;
-  const markers = [
+  const markers = mode === 'normal' ? [
+    { x: N_FIRE_L_X, y: N_FIRE_L_Y, col: '#ff7733', label: '左頭火 🔥' },
+    { x: N_FIRE_R_X, y: N_FIRE_R_Y, col: '#ff5500', label: '右頭火 🔥' },
+    { x: N_GAS_L_X,  y: N_GAS_L_Y,  col: '#33ff88', label: '左頭毒 💨' },
+    { x: N_GAS_R_X,  y: N_GAS_R_Y,  col: '#00cc66', label: '右頭毒 💨' }
+  ] : [
     { x: M_FIRE_X, y: M_FIRE_Y, col: '#ff7733', label: '左嘴 🔥' },
     { x: M_GAS_X,  y: M_GAS_Y,  col: '#33ff88', label: '右嘴 💨' }
   ];
@@ -1486,7 +1610,7 @@ function render() {
 
   drawCoins();
   drawExplosions(now);
-  if (mode === 'mega') drawCalibMarkers();
+  drawCalibMarkers();
   requestAnimationFrame(render);
 }
 
