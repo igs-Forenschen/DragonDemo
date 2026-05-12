@@ -392,7 +392,9 @@ let canvas, ctx, wrap;
 let n_shakeT  = -1, n_changeT = -1;
 let n_fireIdx = 0,  n_fireT   = -1;
 let n_gasIdx  = 0,  n_gasT    = -1;
-let n_lastLandT = -1;
+let n_lastLandT    = -1;
+let n_allExplodeT  = -1;   // 全體爆炸觸發時間（毒氣全到位後 500ms）
+let n_hideLabels   = false; // 金幣收集完畢後隱藏倍率文字
 let n_dragonForm = 21;   // 21=idle/shake, 22=fire, 23=gas
 let n_fireBalls  = [];
 let n_gasBalls   = [];
@@ -564,9 +566,16 @@ function updatePhaseNormal(now) {
     if (n_fireBalls.every(b => b.arrived)) {
       if (n_lastLandT < 0) n_lastLandT = now;
       if (now - n_lastLandT >= FIRE_WAIT_PAD) {
-        n_dragonForm = 23;
-        phase = 'gas_change';
-        n_changeT = now;
+        const needGas = n_fireBalls.some(fb => fb.dblVal > 1);
+        if (needGas) {
+          n_dragonForm = 23;
+          phase = 'gas_change';
+          n_changeT = now;
+        } else {
+          // 全是 x1：跳過毒氣，直接進爆炸等待（500ms 後同時爆）
+          phase = 'gas_wait';
+          n_allExplodeT = now;
+        }
         setSt('');
       }
     }
@@ -574,16 +583,15 @@ function updatePhaseNormal(now) {
 
   if (phase === 'gas_change') {
     if (now - n_changeT >= N_CHANGE_DUR) {
-      // 建立毒氣球
-      n_gasBalls = n_fireBalls.map((fb, idx) => ({
-        sx: idx % 2 === 0 ? N_GAS_L_X : N_GAS_R_X,
-        sy: idx % 2 === 0 ? N_GAS_L_Y : N_GAS_R_Y,
-        x:  idx % 2 === 0 ? N_GAS_L_X : N_GAS_R_X,
-        y:  idx % 2 === 0 ? N_GAS_L_Y : N_GAS_R_Y,
-        tx: fb.tx, ty: fb.ty,
-        targetIdx: idx,
-        r: N_GAS_R, alpha: 1, t0: -1, arrived: false
-      }));
+      // 只為 dblVal > 1 的火球建立毒氣球（x1 倍不表演）
+      n_gasBalls = [];
+      n_fireBalls.forEach((fb, idx) => {
+        if (fb.dblVal <= 1) return;
+        const sx = idx % 2 === 0 ? N_GAS_L_X : N_GAS_R_X;
+        const sy = idx % 2 === 0 ? N_GAS_L_Y : N_GAS_R_Y;
+        n_gasBalls.push({ sx, sy, x: sx, y: sy, tx: fb.tx, ty: fb.ty,
+          targetIdx: idx, r: N_GAS_R, alpha: 1, t0: -1, arrived: false });
+      });
       phase = 'gassing';
       n_gasIdx = 0; n_gasT = now;
     }
@@ -602,14 +610,28 @@ function updatePhaseNormal(now) {
   }
 
   if (phase === 'gas_wait') {
-    const allHit     = n_gasBalls.every(g => g.arrived);
-    const boomDone   = n_fireBalls.every(b =>
+    // Step 1：所有毒氣球到位後，啟動爆炸倒計時
+    if (n_allExplodeT < 0 && n_gasBalls.every(g => g.arrived)) {
+      n_allExplodeT = now;
+    }
+    // Step 2：500ms 後，所有火球同時爆炸
+    if (n_allExplodeT >= 0 && now - n_allExplodeT >= 500) {
+      n_fireBalls.forEach(fb => {
+        if (fb.arrived && !fb.exploded) {
+          fb.exploded = true; fb.explodeT = now; fb.popT = now;
+        }
+      });
+    }
+    // Step 3：爆炸動畫結束後，噴金幣 → 收集 → 倍率消失 → 獎圈
+    const anyExploded = n_fireBalls.some(b => b.exploded);
+    const boomDone    = anyExploded && n_fireBalls.every(b =>
       !b.exploded || (now - b.explodeT > EXPLODE_DUR + 200));
-    if (allHit && boomDone) {
+    if (boomDone) {
       n_fireBalls.forEach(fb => spawnCoins(fb));
       const totalVal = n_fireBalls.reduce((s, b) => s + b.finalVal, 0);
       phase = 'collecting';
       collectCoins(() => {
+        n_hideLabels = true;   // 金幣收到財產處，倍率文字消失
         showPrizeCircle(totalVal);
         phase = 'done';
         busy  = false;
@@ -636,10 +658,7 @@ function updatePhaseNormal(now) {
     g.y = g.sy + (g.ty - g.sy) * et;
     if (t >= 1) {
       g.arrived = true; g.x = g.tx; g.y = g.ty;
-      const fb = n_fireBalls[g.targetIdx];
-      if (fb && !fb.exploded) {
-        fb.exploded = true; fb.explodeT = now; fb.popT = now;
-      }
+      // 不在此觸發爆炸，統一在 gas_wait 全到位後 500ms 同時引爆
     }
   });
 }
@@ -1000,7 +1019,7 @@ function drawFireBallsNormal(now) {
     ctx.shadowBlur  = 16;
     ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
 
-    if (fb.arrived) {
+    if (fb.arrived && !n_hideLabels) {
       const val = fb.exploded ? fb.finalVal : fb.baseVal;
       const fs  = Math.round(r * (fb.exploded ? 0.70 : 0.62));
       ctx.font         = `700 ${fs}px sans-serif`;
@@ -1652,6 +1671,7 @@ function resetGame() {
   n_fireBalls=[]; n_gasBalls=[]; n_dragonForm=21;
   n_shakeT=-1; n_changeT=-1; n_fireIdx=0; n_fireT=-1;
   n_gasIdx=0; n_gasT=-1; n_lastLandT=-1;
+  n_allExplodeT=-1; n_hideLabels=false;
 
   // MEGA
   m_fireBalls=[]; m_gasBallsActive=[]; m_muzzleFlashes=[]; m_popOverlays=[];
