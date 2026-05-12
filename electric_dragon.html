@@ -308,7 +308,7 @@ const MEGA_WOBBLE_DUR_TIER = 950; // 換階時的加強晃動時間（ms）
 const TIER_VALS = new Set([111, 555, 1111]); // 換階觸發值
 const MEGA_PRE_JUMP_DUR  = 800;
 const MEGA_FINAL_POP_DUR = 900;
-const MEGA_DRG_X  = 60,  MEGA_DRG_Y  = 455;
+const MEGA_DRG_X  = 500,  MEGA_DRG_Y  = 455;
 const MEGA_DRG_W  = 532, MEGA_DRG_H  = 180;
 const MEGA_FIRE_X = 565, MEGA_FIRE_Y = 545;
 const MEGA_SCATTER_CX = 820, MEGA_SCATTER_CY = 290;
@@ -323,6 +323,14 @@ let megaFinalPopT    = -1;
 let screenShakeAmp   = 0;
 let currentWobbleDur = MEGA_WOBBLE_DUR; // 本輪晃動持續時間
 let wobbleIsTier     = false;           // 本輪是否為換階晃動
+
+// ── Mega 連鎖閃電狀態 ──
+const MEGA_CHAIN_FLY_DUR = 220;   // 連鎖球飛行時間（ms，極短）
+const MEGA_CHAIN_DELAY   = 200;   // 上一顆落地後等多久再連鎖（ms）
+const MEGA_CHAIN_ARC_DUR = 550;   // 落地後閃電弧持續時間（ms）
+let megaChainIdx        = 0;      // 下一顆要生成的 ballSequence 索引
+let megaChainWaitT      = -1;     // 上一顆落地的時間戳
+let megaLastSpawnedIdx  = -1;     // 最後生成的球在 eBalls 的索引
 let turretDragonImg  = null, turretDragonLoaded = false;
 
 // 金幣、獎圈
@@ -1078,20 +1086,33 @@ function buildMegaBallSequence(){
 
 const MEGA_START_OPTIONS = [11, 33, 55]; // 11、33 為假數字，增加跳動次數
 
+// 一次生成所有球（舊版，保留備用）
 function spawnMegaBalls(){
-  ballSequence.forEach(b => {
-    const baseMul = MEGA_START_OPTIONS[Math.floor(Math.random() * MEGA_START_OPTIONS.length)];
-    eBalls.push({
-      sx: MEGA_FIRE_X, sy: MEGA_FIRE_Y,
-      x:  MEGA_FIRE_X, y:  MEGA_FIRE_Y,
-      tx: b.tx, ty: b.ty,
-      r: b.r, type: b.type,
-      mul: b.finalMul, finalMul: b.finalMul, currentMul: baseMul,
-      alpha: 1, t0: Date.now() + Math.random()*200, arrived: false,
-      revealed: false, popT: -1,
-      jumpStopped: false, dimmed: false, dimT: -1,
-    });
+  ballSequence.forEach((_,i) => spawnOneMegaBall(i, null));
+}
+
+// 生成單顆 Mega 球（連鎖用）
+// seqIdx：ballSequence 的索引；chainSrc：{x,y} 連鎖來源（null=從砲口）
+function spawnOneMegaBall(seqIdx, chainSrc){
+  const b = ballSequence[seqIdx];
+  if(!b) return;
+  const isChain = !!chainSrc;
+  const sx = isChain ? chainSrc.x : MEGA_FIRE_X;
+  const sy = isChain ? chainSrc.y : MEGA_FIRE_Y;
+  const baseMul = MEGA_START_OPTIONS[Math.floor(Math.random() * MEGA_START_OPTIONS.length)];
+  eBalls.push({
+    sx, sy, x: sx, y: sy,
+    tx: b.tx, ty: b.ty,
+    r: b.r, type: b.type,
+    mul: b.finalMul, finalMul: b.finalMul, currentMul: baseMul,
+    alpha: 1, t0: Date.now(), arrived: false,
+    revealed: false, popT: -1,
+    jumpStopped: false, dimmed: false, dimT: -1,
+    isChain,                              // 連鎖球標記
+    flyDur: isChain ? MEGA_CHAIN_FLY_DUR : BALL_FLY_DUR,
+    arcT: -1, impactT: -1,               // 落地弧 / 衝擊光環
   });
+  megaLastSpawnedIdx = eBalls.length - 1;
 }
 
 function spawnRevealCoins(ball){
@@ -1125,6 +1146,45 @@ function drawTurretDragon(){
     ctx.fillRect(MEGA_DRG_X, MEGA_DRG_Y, MEGA_DRG_W, MEGA_DRG_H);
     ctx.restore();
   }
+}
+
+// 連鎖閃電弧（飛行中追蹤球、落地後持續 MEGA_CHAIN_ARC_DUR ms 消退）
+function drawMegaChainArcs(now){
+  eBalls.forEach(b => {
+    if(!b.isChain) return;
+    let ex, ey, alpha, lineW, spread;
+    if(!b.arrived){
+      ex = b.x; ey = b.y;
+      alpha  = 0.7 + 0.3 * Math.sin(now * 0.03);
+      lineW  = 3; spread = 28;
+    } else if(b.arcT >= 0){
+      const t = (now - b.arcT) / MEGA_CHAIN_ARC_DUR;
+      if(t >= 1) return;
+      ex = b.tx; ey = b.ty;
+      alpha  = (1 - t) * 0.8;
+      lineW  = 2.5 - t * 1.5; spread = 22;
+    } else return;
+    drawLightningBolt(b.sx, b.sy, ex, ey, 4, spread,        alpha,       lineW,       '#44ffee');
+    drawLightningBolt(b.sx, b.sy, ex, ey, 3, spread * 0.5,  alpha * 0.55, lineW * 0.5, '#ccffff');
+  });
+}
+
+// 落地衝擊光環（連鎖球落地瞬間向外擴散）
+function drawMegaChainImpacts(now){
+  eBalls.forEach(b => {
+    if(!b.isChain || b.impactT < 0) return;
+    const it = (now - b.impactT) / 350;
+    if(it >= 1) return;
+    const ir = b.r * 1.2 + it * b.r * 2.8;
+    ctx.save();
+    ctx.globalAlpha = (1 - it) * 0.85;
+    ctx.strokeStyle = '#88ffff';
+    ctx.lineWidth   = 2.5 - it * 2;
+    ctx.shadowColor = '#00eeff'; ctx.shadowBlur = 20;
+    ctx.beginPath(); ctx.arc(b.tx, b.ty, ir, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0; ctx.restore();
+  });
 }
 
 function drawMegaConnections(){
@@ -1306,13 +1366,31 @@ function updatePhase(now){
 
   if(phase === 'mega_turret'){
     if(now - megaT >= MEGA_TURRET_DUR){
-      spawnMegaBalls();
+      // 只生成第一顆球，其餘靠連鎖
+      megaChainIdx       = 0;
+      megaChainWaitT     = -1;
+      megaLastSpawnedIdx = -1;
+      spawnOneMegaBall(megaChainIdx, null);
+      megaChainIdx++;
       phase = 'mega_flying'; megaT = now; megaAllArrivedT = -1;
     }
   }
 
   if(phase === 'mega_flying'){
-    if(eBalls.length > 0 && eBalls.every(b => b.arrived)){
+    // ── 連鎖：等上一顆落地 → 等 MEGA_CHAIN_DELAY → 生成下一顆 ──
+    if(megaChainIdx < ballSequence.length){
+      const lastBall = eBalls[megaLastSpawnedIdx];
+      if(lastBall && lastBall.arrived){
+        if(megaChainWaitT < 0) megaChainWaitT = now;
+        if(now - megaChainWaitT >= MEGA_CHAIN_DELAY){
+          megaChainWaitT = -1;
+          spawnOneMegaBall(megaChainIdx, { x: lastBall.tx, y: lastBall.ty });
+          megaChainIdx++;
+        }
+      }
+    }
+    // ── 全部到齊後進入下一階段 ──
+    if(eBalls.length === ballSequence.length && eBalls.every(b => b.arrived)){
       if(megaAllArrivedT < 0) megaAllArrivedT = now;
       if(now - megaAllArrivedT >= MEGA_FLY_PAUSE){
         phase = 'mega_pre_jump'; megaPreJumpT = now;
@@ -1372,11 +1450,18 @@ function updatePhase(now){
 
   eBalls.forEach(b => {
     if(b.arrived) return;
-    const t = Math.min((now - b.t0) / BALL_FLY_DUR, 1);
+    const t = Math.min((now - b.t0) / (b.flyDur || BALL_FLY_DUR), 1);
     const et = 1 - Math.pow(1 - t, 3);
     b.x = b.sx + (b.tx - b.sx) * et;
     b.y = b.sy + (b.ty - b.sy) * et;
-    if(t >= 1) b.arrived = true;
+    if(t >= 1){
+      b.arrived = true;
+      b.x = b.tx; b.y = b.ty;
+      if(b.isChain){
+        b.arcT    = now;  // 連鎖弧開始消退
+        b.impactT = now;  // 落地衝擊光環
+      }
+    }
   });
 }
 
@@ -1440,6 +1525,8 @@ function render(){
   drawRingBurst(cx, cy);
 
   if(spinning) drawRingArcs(cx, cy, 0, Math.PI, 0.85, 4.5);
+  drawMegaChainArcs(now);
+  drawMegaChainImpacts(now);
   drawMegaConnections();
   drawBalls();
   drawRevealLightning();
@@ -1536,6 +1623,7 @@ function resetGame(){
   megaT = -1; megaAllArrivedT = -1; jumpT = -1; megaPreJumpT = -1;
   megaFinalBallIdx = -1; megaFinalPopT = -1; screenShakeAmp = 0;
   currentWobbleDur = MEGA_WOBBLE_DUR; wobbleIsTier = false;
+  megaChainIdx = 0; megaChainWaitT = -1; megaLastSpawnedIdx = -1;
   document.getElementById('abtn').style.opacity = '1';
   document.getElementById('mulEl').style.opacity = '0';
   document.getElementById('winEl').style.display = 'none';
