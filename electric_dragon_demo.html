@@ -227,14 +227,14 @@ let SMALL_R = 28, BIG_R = 46;
 let ACT1_DUR, ACT3_DUR, CHARGE_DUR_SMALL, CHARGE_DUR_BIG, BURST_DUR, BALL_INTERVAL, WAVE_PAUSE_DUR;
 
 // ── 連鎖閃電常數 ──
-const CHAIN_FLY_DUR  = 380;  // 連鎖球飛行時間（比一般短）
-const CHAIN_INTERVAL = 160;  // 連鎖球之間的間隔 ms
-const CHAIN_ARC_DUR  = 700;  // 落地後閃電弧維持時間 ms
+const CHAIN_FLY_DUR  = 220;  // 連鎖球飛行時間（極短，幾乎瞬移）
+const CHAIN_DELAY    = 200;  // 上一顆落地後，等多久再連鎖 ms
+const CHAIN_ARC_DUR  = 550;  // 落地後閃電弧維持時間 ms
 
 // 腳本執行引擎狀態
 let ballsFired  = 0;
 let ballSequence = [];
-let execState   = 'idle';  // accel|charging|chain_interval|ball_interval|wave_pause|decel
+let execState   = 'idle';  // accel|charging|chain_wait|ball_interval|wave_pause|decel
 let execT       = 0;       // 目前狀態開始的時間戳
 let execWaves   = [];      // [[ball,...], ...] 波次結構
 let execWaveIdx = 0;       // 目前處理第幾波
@@ -242,7 +242,9 @@ let execBallIdx = 0;       // 目前波次中第幾顆
 let chargeIsBig = false;   // 本次蓄力是否為大球
 let ringBurstT  = -1;      // 環形爆發特效開始時間（-1=未激活）
 let execScript  = null;    // 目前執行中的腳本（用於 custom_pauses 等覆寫）
-let chainBallSrc = null;   // 上一顆球的落點 {x,y}，供下一顆連鎖球使用
+let chainBallSrc  = null;  // 上一顆球的落點 {x,y}
+let lastSpawnedIdx = -1;   // 最後生成的球在 eBalls 的 index
+let chainWaitT    = -1;    // 上一顆球落地時間（用來計算 CHAIN_DELAY）
 
 // ── 腳本資料：由 dragon_performance.json 載入 ──
 let SCRIPTS;
@@ -812,24 +814,29 @@ function drawChainArcs(now){
   eBalls.forEach(b => {
     if(!b.isChain) return;
 
-    let ex, ey, alpha;
+    let ex, ey, alpha, lineW, spread;
 
     if(!b.arrived){
-      // 飛行中：從 spawn 點連到當前位置
+      // 飛行中：主弧從 spawn 點追蹤到當前球位置（代表閃電正在「跳躍」）
       ex = b.x; ey = b.y;
-      alpha = 0.55 + 0.35 * Math.sin(now * 0.022);
+      // 閃爍感
+      alpha  = 0.7 + 0.3 * Math.sin(now * 0.03);
+      lineW  = 3;
+      spread = 28;
     } else if(b.arcT >= 0){
-      // 落地後：固定弧，逐漸消退
+      // 落地後：弧固定到目標，逐漸消退
       const t = (now - b.arcT) / CHAIN_ARC_DUR;
       if(t >= 1) return;
       ex = b.tx; ey = b.ty;
-      alpha = (1 - t) * 0.75;
+      alpha  = (1 - t) * 0.8;
+      lineW  = 2.5 - t * 1.5;
+      spread = 22;
     } else return;
 
-    // 主弧（青白色）
-    drawLightningBolt(b.sx, b.sy, ex, ey, 3, 22, alpha, 2.2, '#66eeff');
-    // 次弧（淡藍，偏移 2px 製造厚度感）
-    drawLightningBolt(b.sx + 1, b.sy + 1, ex + 1, ey + 1, 2, 16, alpha * 0.45, 1.2, '#aaddff');
+    // 主弧（亮青）
+    drawLightningBolt(b.sx, b.sy, ex, ey, 4, spread, alpha,       lineW,       '#44ffee');
+    // 輔弧（白，較細，製造核心感）
+    drawLightningBolt(b.sx, b.sy, ex, ey, 3, spread * 0.5, alpha * 0.6, lineW * 0.5, '#ccffff');
   });
 }
 
@@ -886,6 +893,22 @@ function drawBalls(){
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.fill();
 
+    // 連鎖落地衝擊閃光（向外擴散的電光環）
+    if(b.isChain && b.impactT >= 0){
+      const it = (Date.now() - b.impactT) / 350;
+      if(it < 1){
+        const ir = b.r * 1.2 + it * b.r * 2.8;
+        ctx.save();
+        ctx.globalAlpha = (1 - it) * 0.85;
+        ctx.strokeStyle = '#88ffff';
+        ctx.lineWidth   = 2.5 - it * 2;
+        ctx.shadowColor = '#00eeff'; ctx.shadowBlur = 20;
+        ctx.beginPath(); ctx.arc(b.x, b.y, ir, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
     ctx.restore();
   });
 }
@@ -911,6 +934,7 @@ function spawnBall(ball, chainSrc){
   });
   // 記錄本顆球的落點，供下一顆連鎖球使用
   chainBallSrc = { x: ball.tx, y: ball.ty };
+  lastSpawnedIdx = eBalls.length - 1;
 }
 
 // ═══════════════════════════════════════════════════
@@ -953,30 +977,25 @@ function updatePhase(now){
     else if(execState === 'charging'){
       spinSpd = topSpd;
       ringAngle += spinSpd;
-      const isChainBall = (execBallIdx > 0);
-      // 連鎖球不蓄力；第一顆才做蓄力動畫
-      const dur = isChainBall ? 40
-                : (chargeIsBig ? CHARGE_DUR_BIG : CHARGE_DUR_SMALL);
+      // 只有每波第一顆才做蓄力動畫
+      const dur = chargeIsBig ? CHARGE_DUR_BIG : CHARGE_DUR_SMALL;
       const cp  = Math.min((now - execT) / dur, 1);
-      if(!isChainBall){
-        window._dragonScale = 0.72 - 0.10 * Math.sin(cp * Math.PI);
-      }
+      window._dragonScale = 0.72 - 0.10 * Math.sin(cp * Math.PI);
       if(cp >= 1){
         window._dragonScale = 0.72;
-        const src = isChainBall ? chainBallSrc : null;
-        spawnBall(execWaves[execWaveIdx][execBallIdx], src);
+        spawnBall(execWaves[execWaveIdx][execBallIdx]);  // 第一顆：從龍中心
         ballsFired++;
-        if(!isChainBall) ringBurstT = now;  // 只有第一顆有衝擊波
+        ringBurstT = now;
         const wave = execWaves[execWaveIdx];
         if(execBallIdx < wave.length - 1){
           execBallIdx++;
-          // 連鎖球用短間隔；第一顆後的第二顆用 chain_interval
-          execState = 'chain_interval';
-          execT = now;
+          // 等第一顆落地後再連鎖
+          execState = 'chain_wait';
+          chainWaitT = -1;
         } else if(execWaveIdx < execWaves.length - 1){
           execWaveIdx++;
           execBallIdx = 0;
-          chainBallSrc = null;  // 新波次從龍中心重新開始
+          chainBallSrc = null;
           execState = 'wave_pause';
           execT = now;
         } else {
@@ -985,14 +1004,35 @@ function updatePhase(now){
         }
       }
     }
-    else if(execState === 'chain_interval'){
-      // 連鎖間隔（比一般 ball_interval 短）
+    else if(execState === 'chain_wait'){
+      // 等上一顆球落地，再等 CHAIN_DELAY，然後連鎖下一顆
       spinSpd = topSpd;
       ringAngle += spinSpd;
-      if(now - execT >= CHAIN_INTERVAL){
-        chargeIsBig = (execWaves[execWaveIdx][execBallIdx].type === 'big');
-        execState = 'charging';
-        execT = now;
+      const lastBall = eBalls[lastSpawnedIdx];
+      if(lastBall && lastBall.arrived){
+        if(chainWaitT < 0) chainWaitT = now;           // 記錄落地時間
+        if(now - chainWaitT >= CHAIN_DELAY){
+          chainWaitT = -1;
+          // 連鎖球：從上一顆落點瞬間閃出
+          spawnBall(execWaves[execWaveIdx][execBallIdx],
+                    { x: lastBall.tx, y: lastBall.ty });
+          ballsFired++;
+          const wave = execWaves[execWaveIdx];
+          if(execBallIdx < wave.length - 1){
+            execBallIdx++;
+            // 繼續等這顆落地再連鎖下一顆
+            execState = 'chain_wait';
+          } else if(execWaveIdx < execWaves.length - 1){
+            execWaveIdx++;
+            execBallIdx = 0;
+            chainBallSrc = null;
+            execState = 'wave_pause';
+            execT = now;
+          } else {
+            execState = 'decel';
+            execT = now;
+          }
+        }
       }
     }
     else if(execState === 'ball_interval'){
@@ -1037,7 +1077,11 @@ function updatePhase(now){
     b.y = b.sy + (b.ty - b.sy) * et;
     if(t >= 1){
       b.arrived = true;
-      if(b.isChain && b.arcT < 0) b.arcT = now;  // 連鎖弧開始計時
+      b.x = b.tx; b.y = b.ty;
+      if(b.isChain && b.arcT < 0){
+        b.arcT      = now;   // 連鎖弧開始計時
+        b.impactT   = now;   // 落地衝擊閃光
+      }
     }
   });
 }
@@ -1190,7 +1234,8 @@ function resetGame(){
   window._dragonScale = 0.72;
   allCoins = []; eBalls = [];
   phase = 'idle'; spinSpd = 0; ballsFired = 0; ringAngle = 0; ballSequence = []; isJackpot = false; _cheatReady = false;
-  execState = 'idle'; execT = 0; execWaves = []; execWaveIdx = 0; execBallIdx = 0; chargeIsBig = false; ringBurstT = -1; execScript = null; hasBigFired = false; bigFireT = -1; chainBallSrc = null;
+  execState = 'idle'; execT = 0; execWaves = []; execWaveIdx = 0; execBallIdx = 0; chargeIsBig = false; ringBurstT = -1; execScript = null; hasBigFired = false; bigFireT = -1;
+  chainBallSrc = null; lastSpawnedIdx = -1; chainWaitT = -1;
   document.getElementById('abtn').style.opacity = '1';
   document.getElementById('mulEl').style.opacity = '0';
   document.getElementById('winEl').style.display = 'none';
